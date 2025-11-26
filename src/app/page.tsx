@@ -1,65 +1,417 @@
-import Image from "next/image";
+// app/page.tsx
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { getTodayRange, formatDuration } from "@/lib/time";
+import { NewSessionForm } from "@/components/new-session-form";
+import { getCurrentUserEmail } from "@/lib/server-auth";
+import { SessionList } from "@/components/session-list";
+import { InlineSignInButton } from "@/components/inline-sign-in-button";
 
-export default function Home() {
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import {
+  Timer,
+  ListChecks,
+  FolderKanban,
+  CalendarRange,
+  FileText,
+  BarChart3,
+  Sparkles,
+  Users,
+} from "lucide-react";
+
+type TodayPageSearchParams = {
+  onboarding?: string;
+};
+
+type TodayPageProps = {
+  // Next 16: searchParams is a Promise
+  searchParams: Promise<TodayPageSearchParams>;
+};
+
+const TodayPage = async ({ searchParams }: TodayPageProps) => {
+  const resolvedSearchParams = await searchParams;
+  const onboardingParam = resolvedSearchParams?.onboarding;
+
+  const onboardingMode =
+    onboardingParam === "1" ||
+    onboardingParam === "true" ||
+    onboardingParam === "yes";
+
+  const ownerEmail = await getCurrentUserEmail();
+
+  /* ------------------------------------------------------------------ */
+  /* ONBOARDING (LOGGED OUT, /?onboarding=1)                            */
+  /* ------------------------------------------------------------------ */
+
+  if (!ownerEmail && onboardingMode) {
+    return (
+      <Card className="w-full border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+        <CardContent className="p-6 md:p-10 lg:p-12">
+          <div className="grid gap-10 lg:grid-cols-[minmax(0,1.45fr),minmax(0,1.1fr)] lg:items-center">
+            {/* LEFT: hero + CTA + key value props */}
+            <div className="space-y-7">
+              {/* Beta pill */}
+              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-3 py-1 text-[0.7rem] font-medium uppercase tracking-wide text-[var(--text-muted)]">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <span>Private beta · Dev Workflow Focus Tracker</span>
+              </div>
+
+              {/* Hero copy */}
+              <div className="space-y-3">
+                <h1 className="text-3xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-4xl">
+                  Know exactly what you shipped this week.
+                </h1>
+                <p className="max-w-xl text-sm md:text-base text-[var(--text-muted)]">
+                  Focus Tracker turns your day into a clean timeline of what you
+                  actually worked on — perfect for weekly reviews, 1:1s,
+                  stand-ups, and client updates.
+                </p>
+              </div>
+
+              {/* Three core benefits */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="flex gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3">
+                  <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--bg-surface)]">
+                    <Timer className="h-4 w-4 text-[var(--text-muted)]" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-[var(--text-primary)]">
+                      Log focus, not tasks
+                    </div>
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">
+                      One quick entry per block of work. No backlog grooming or
+                      ticket hygiene required.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3">
+                  <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--bg-surface)]">
+                    <BarChart3 className="h-4 w-4 text-[var(--text-muted)]" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-[var(--text-primary)]">
+                      See where time really went
+                    </div>
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">
+                      Week and project views show your actual focus — not just a
+                      list of tickets.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3 sm:col-span-2">
+                  <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--bg-surface)]">
+                    <FileText className="h-4 w-4 text-[var(--text-muted)]" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-[var(--text-primary)]">
+                      Weekly summary in one click
+                    </div>
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">
+                      The Summary tab generates a Markdown report you can paste
+                      into Obsidian, Notion, or email — no formatting, no
+                      screenshots.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* CTA row */}
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <InlineSignInButton
+                    label="Sign in with GitHub or Google"
+                    className="mt-0 h-10 px-5 text-sm md:text-base"
+                  />
+                  <span className="text-xs md:text-sm text-[var(--text-muted)]">
+                    Free while in beta. No automatic tracking — only what you
+                    choose to log.
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 text-[0.75rem] text-[var(--text-muted)]">
+                  <Link
+                    href="/"
+                    className="font-medium text-[var(--accent-solid)] hover:underline"
+                  >
+                    Skip intro and open the app →
+                  </Link>
+                  <span className="hidden text-[var(--text-muted)] sm:inline">
+                    You can always come back to this overview later.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT: product preview / who it's for */}
+            <div className="space-y-5 rounded-2xl border border-[var(--border-subtle)] bg-gradient-to-b from-[var(--bg-surface-soft)] to-[var(--bg-surface)] p-4 sm:p-5">
+              {/* Fake top bar */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="inline-flex items-center gap-2 rounded-full bg-[var(--bg-surface-soft)] px-3 py-1 text-[0.7rem] text-[var(--text-muted)]">
+                  <CalendarRange className="h-3.5 w-3.5" />
+                  <span>Today · Week · Summary</span>
+                </div>
+                <div className="flex items-center gap-2 text-[0.7rem] text-[var(--text-muted)]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  <span className="font-mono">17h 05m this week</span>
+                </div>
+              </div>
+
+              {/* Fake "Today" preview */}
+              <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-[0.7rem] uppercase tracking-wide text-[var(--text-muted)]">
+                      Today
+                    </div>
+                    <div className="mt-0.5 text-sm font-medium text-[var(--text-primary)]">
+                      Shipping auth &amp; cleaning up bugs
+                    </div>
+                  </div>
+                  <div className="inline-flex items-center gap-1 rounded-full bg-[var(--bg-surface-soft)] px-2 py-0.5 text-[0.7rem] text-[var(--text-muted)]">
+                    <Timer className="h-3 w-3" />
+                    <span>3h 45m logged</span>
+                  </div>
+                </div>
+
+                <ul className="mt-3 space-y-1.5 text-[0.72rem] text-[var(--text-primary)]">
+                  <li className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                      <span className="truncate">
+                        [Client API] Wire up new billing endpoints
+                      </span>
+                    </div>
+                    <span className="shrink-0 font-mono text-[var(--text-muted)]">
+                      1h 15m
+                    </span>
+                  </li>
+                  <li className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-sky-400" />
+                      <span className="truncate">
+                        [Product site] Fix flaky image loading bug
+                      </span>
+                    </div>
+                    <span className="shrink-0 font-mono text-[var(--text-muted)]">
+                      45m
+                    </span>
+                  </li>
+                  <li className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-amber-400" />
+                      <span className="truncate">
+                        [Exploration] Notes from testing new auth flow
+                      </span>
+                    </div>
+                    <span className="shrink-0 font-mono text-[var(--text-muted)]">
+                      1h 45m
+                    </span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Who it's for + roadmap */}
+              <div className="grid gap-3 text-[0.75rem] text-[var(--text-primary)] sm:grid-cols-2">
+                <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--bg-surface-soft)]">
+                      <Users className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+                    </div>
+                    <span className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
+                      Built for
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    <span className="rounded-full bg-[var(--bg-surface-soft)] px-2 py-0.5 text-[0.7rem]">
+                      Solo devs &amp; indies
+                    </span>
+                    <span className="rounded-full bg-[var(--bg-surface-soft)] px-2 py-0.5 text-[0.7rem]">
+                      Freelancers &amp; consultants
+                    </span>
+                    <span className="rounded-full bg-[var(--bg-surface-soft)] px-2 py-0.5 text-[0.7rem]">
+                      Engineers tracking impact
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--bg-surface-soft)]">
+                      <Sparkles className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+                    </div>
+                    <span className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
+                      On the roadmap
+                    </span>
+                  </div>
+                  <ul className="mt-1 space-y-1 text-[0.7rem] text-[var(--text-muted)]">
+                    <li>• Notion &amp; Obsidian export presets</li>
+                    <li>• Automatic weekly email recap</li>
+                    <li>• Calendar &amp; task integrations (Pro)</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* LOGGED OUT (NO ONBOARDING PARAM)                                  */
+  /* ------------------------------------------------------------------ */
+
+  if (!ownerEmail) {
+    return (
+      <div className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6 text-sm text-[var(--text-muted)]">
+        <h1 className="text-lg font-semibold text-[var(--text-primary)]">
+          Today&apos;s focus
+        </h1>
+        <p className="mt-2">
+          Please sign in using the button in the top-right (GitHub or Google) to
+          log focus sessions and see your daily log.
+        </p>
+        <InlineSignInButton label="Sign in to Focus Tracker" />
+      </div>
+    );
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* AUTHENTICATED FLOW                                                 */
+  /* ------------------------------------------------------------------ */
+
+  const { start, end } = getTodayRange();
+
+  const [projects, sessions] = await Promise.all([
+    prisma.project.findMany({
+      where: { ownerEmail, isArchived: false },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.session.findMany({
+      where: {
+        ownerEmail,
+        startTime: {
+          gte: start,
+          lt: end,
+        },
+      },
+      include: {
+        project: true,
+      },
+      orderBy: {
+        startTime: "asc", // oldest -> newest for a proper timeline
+      },
+    }),
+  ]);
+
+  const totalMs = sessions.reduce((acc, s) => acc + s.durationMs, 0);
+  const sessionsCount = sessions.length;
+
+  // Figure out the "primary" project for today by total time
+  let primaryProjectName = "—";
+  if (sessions.length > 0) {
+    const perProject = sessions.reduce<
+      Record<number, { name: string; totalMs: number }>
+    >((acc, s) => {
+      if (!acc[s.projectId]) {
+        acc[s.projectId] = {
+          name: s.project.name,
+          totalMs: 0,
+        };
+      }
+      acc[s.projectId].totalMs += s.durationMs;
+      return acc;
+    }, {});
+
+    const top = Object.values(perProject).sort(
+      (a, b) => b.totalMs - a.totalMs
+    )[0];
+
+    if (top) {
+      primaryProjectName = top.name;
+    }
+  }
+
+  const projectSummaries = projects.map((p) => ({
+    id: p.id,
+    name: p.name,
+    color: p.color,
+  }));
+
+  const todayLabel = start.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
+
+  // Map Prisma sessions → SessionList items
+  const sessionItems = sessions.map((s) => ({
+    id: s.id,
+    projectName: s.project.name,
+    projectColor: s.project.color,
+    intention: s.intention,
+    durationMs: s.durationMs,
+    startTime: s.startTime.toISOString(),
+    endTime: s.endTime.toISOString(),
+    notes: s.notes,
+  }));
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="flex w-full flex-col gap-6 lg:flex-row">
+      {/* Left: log new session */}
+      <NewSessionForm projects={projectSummaries} totalTodayMs={totalMs} />
+
+      {/* Right: today's overview + log */}
+      <Card className="flex-1">
+        <CardHeader>
+          <CardTitle className="text-lg text-[var(--text-primary)]">
+            Today&apos;s log
+          </CardTitle>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
+            {todayLabel}. A timeline of what you&apos;ve worked on today.
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+        </CardHeader>
+
+        <CardContent>
+          {/* Today at a glance */}
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3">
+              <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+                <span>Total time</span>
+                <Timer className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+              </div>
+              <div className="mt-1 text-2xl font-mono text-[var(--text-primary)]">
+                {formatDuration(totalMs)}
+              </div>
+            </div>
+            <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3">
+              <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+                <span>Sessions</span>
+                <ListChecks className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+              </div>
+              <div className="mt-1 text-2xl font-mono text-[var(--text-primary)]">
+                {sessionsCount}
+              </div>
+            </div>
+            <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3">
+              <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+                <span>Primary project</span>
+                <FolderKanban className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+              </div>
+              <div className="mt-1 truncate text-sm font-medium text-[var(--text-primary)]">
+                {primaryProjectName}
+              </div>
+            </div>
+          </div>
+
+          {/* Timeline with inline edit/delete */}
+          <SessionList sessions={sessionItems} totalMs={totalMs} />
+        </CardContent>
+      </Card>
     </div>
   );
-}
+};
+
+export default TodayPage;
