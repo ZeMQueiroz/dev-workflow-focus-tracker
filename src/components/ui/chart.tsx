@@ -30,6 +30,9 @@ type ChartContainerProps = React.HTMLAttributes<HTMLDivElement> & {
   config: ChartConfig;
 };
 
+// Allow arbitrary CSS custom properties while keeping CSSProperties typing
+type CSSVarStyle = React.CSSProperties & Record<string, string | number>;
+
 export const ChartContainer = ({
   config,
   className,
@@ -37,11 +40,11 @@ export const ChartContainer = ({
   ...props
 }: ChartContainerProps) => {
   // Map config keys → CSS variables like --color-time, --color-foo
-  const style = React.useMemo<React.CSSProperties>(() => {
-    const s: React.CSSProperties = {};
+  const style = React.useMemo<CSSVarStyle>(() => {
+    const s: CSSVarStyle = {} as CSSVarStyle;
     for (const [key, value] of Object.entries(config)) {
       if (value?.color) {
-        (s as any)[`--color-${key}`] = value.color;
+        s[`--color-${key}`] = value.color;
       }
     }
     return s;

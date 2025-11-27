@@ -4,6 +4,7 @@ import "./globals.css";
 import { MainNav } from "@/components/main-nav";
 import { AuthProvider } from "@/components/auth-provider";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AppFooter } from "@/components/app-footer";
 import { Inter, JetBrains_Mono } from "next/font/google";
 
 const geistSans = Inter({
@@ -37,6 +38,7 @@ const RootLayout = ({ children }: RootLayoutProps) => {
             <main className="mx-auto flex min-h-[calc(100vh-3.5rem)] max-w-5xl flex-col gap-6 px-4 py-6 md:px-8">
               {children}
             </main>
+            <AppFooter />
           </AuthProvider>
         </ThemeProvider>
       </body>

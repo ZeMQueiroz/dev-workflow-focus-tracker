@@ -3,41 +3,39 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useState,
+  useEffect,
   ReactNode,
 } from "react";
-import { DEFAULT_THEME, type ThemeId } from "@/lib/themes";
+
+const THEME_STORAGE_KEY = "weekline:theme";
+const DEFAULT_THEME = "dark";
+
+type Theme = "dark" | "light";
 
 type ThemeContextValue = {
-  theme: ThemeId;
-  setTheme: (theme: ThemeId) => void;
+  theme: Theme;
+  setTheme: (t: Theme) => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
-const STORAGE_KEY = "focus-tracker-theme";
-
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
-  const [theme, setThemeState] = useState<ThemeId>(DEFAULT_THEME);
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === "undefined") return DEFAULT_THEME;
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const stored = window.localStorage.getItem(STORAGE_KEY) as ThemeId | null;
-    const initial = stored || DEFAULT_THEME;
-
-    setThemeState(initial);
-    document.documentElement.dataset.theme = initial;
-  }, []);
-
-  const setTheme = (value: ThemeId) => {
-    setThemeState(value);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(STORAGE_KEY, value);
-      document.documentElement.dataset.theme = value;
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === "dark" || stored === "light") {
+      return stored;
     }
-  };
+    return DEFAULT_THEME;
+  });
+
+  // keep DOM + localStorage in sync with state
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme }}>

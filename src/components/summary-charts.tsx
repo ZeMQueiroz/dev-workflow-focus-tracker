@@ -144,9 +144,7 @@ const SummaryCharts = ({ perDay, perProject }: SummaryChartsProps) => {
                 <ChartTooltip
                   content={
                     <ChartTooltipContent
-                      formatter={(value, name) =>
-                        `${formatMinutesLabel(value)}`
-                      }
+                      formatter={(value) => `${formatMinutesLabel(value)}`}
                     />
                   }
                 />

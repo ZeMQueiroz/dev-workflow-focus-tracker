@@ -61,7 +61,7 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
                 <h1 className="text-3xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-4xl">
                   Know exactly what you shipped this week.
                 </h1>
-                <p className="max-w-xl text-sm md:text-base text-[var(--text-muted)]">
+                <p className="max-w-xl text-sm text-[var(--text-muted)] md:text-base">
                   Focus Tracker turns your day into a clean timeline of what you
                   actually worked on — perfect for weekly reviews, 1:1s,
                   stand-ups, and client updates.
@@ -124,7 +124,7 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
                     label="Sign in with GitHub or Google"
                     className="mt-0 h-10 px-5 text-sm md:text-base"
                   />
-                  <span className="text-xs md:text-sm text-[var(--text-muted)]">
+                  <span className="text-xs text-[var(--text-muted)] md:text-sm">
                     Free while in beta. No automatic tracking — only what you
                     choose to log.
                   </span>
@@ -360,7 +360,7 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
 
   return (
     <div className="flex w-full flex-col gap-6 lg:flex-row">
-      {/* Left: log new session */}
+      {/* Left: log new session (timer-first) */}
       <NewSessionForm projects={projectSummaries} totalTodayMs={totalMs} />
 
       {/* Right: today's overview + log */}
@@ -370,7 +370,8 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
             Today&apos;s log
           </CardTitle>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            {todayLabel}. A timeline of what you&apos;ve worked on today.
+            {todayLabel}. Start a focus timer on the left — every session you
+            save shows up here as a timeline of your day.
           </p>
         </CardHeader>
 

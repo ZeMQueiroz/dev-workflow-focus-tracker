@@ -465,7 +465,7 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
             <Button
               asChild
               variant="outline"
-              className="border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-3 py-1.5 text-[var(--text-primary)] hover:bg-[var(--bg-surface)]"
+              className="border text-xs border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-3 py-1.5 text-[var(--text-primary)] hover:bg-[var(--bg-surface)]"
             >
               <Link href={prevHref} className="flex items-center gap-1">
                 <ChevronLeft className="h-4 w-4" />

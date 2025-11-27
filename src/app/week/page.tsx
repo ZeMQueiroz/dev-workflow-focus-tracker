@@ -208,10 +208,8 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
   };
 
   const prevOffset = weekOffset - 1;
-  const nextOffset = weekOffset >= 0 ? 0 : weekOffset + 1;
 
   const prevHref = buildHrefForOffset(prevOffset);
-  const nextHref = buildHrefForOffset(nextOffset);
 
   // Reorder dayGroups so the active day shows first
   let orderedDayGroups = dayGroups;
@@ -252,7 +250,10 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
                 variant="outline"
                 className="border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-3 py-1.5 text-[var(--text-primary)] hover:bg-[var(--bg-surface)]"
               >
-                <Link href={prevHref} className="flex items-center gap-1">
+                <Link
+                  href={prevHref}
+                  className=" text-xs flex items-center gap-1"
+                >
                   <ChevronLeft className="h-4 w-4" />
                   <span>Previous</span>
                 </Link>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { useFormStatus } from "react-dom";
@@ -20,7 +20,6 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select";
-import { Clock, Keyboard, Play, Pause, RotateCcw } from "lucide-react";
 
 type ProjectSummary = {
   id: number;
@@ -58,34 +57,33 @@ const formatElapsed = (elapsedMs: number) => {
   return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 };
 
+const LAST_PROJECT_KEY = "weekline:last-project";
+
 const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
-  const hasProjects = projects.length > 0;
-
   // ---- Project selection / last used ----
-  const [projectId, setProjectId] = useState(
-    hasProjects ? String(projects[0].id) : ""
-  );
+  const hasProjects = projects.length > 0;
+  const [projectId, setProjectId] = useState<string | "new">(() => {
+    if (!hasProjects) return "new";
 
-  // Load last used project from localStorage
-  useEffect(() => {
-    if (!hasProjects) return;
-    if (typeof window === "undefined") return;
-
-    const stored = window.localStorage.getItem("lastProjectId");
-    if (!stored) return;
-
-    const exists = projects.some((p) => String(p.id) === stored);
-    if (exists) {
-      setProjectId(stored);
+    if (typeof window === "undefined") {
+      // SSR / first render on server
+      return String(projects[0].id);
     }
-  }, [hasProjects, projects]);
+
+    const stored = window.localStorage.getItem(LAST_PROJECT_KEY);
+    if (stored && projects.some((p) => String(p.id) === stored)) {
+      return stored;
+    }
+
+    return String(projects[0].id);
+  });
 
   // Persist last used project when it changes
   useEffect(() => {
     if (!projectId) return;
     if (typeof window === "undefined") return;
 
-    window.localStorage.setItem("lastProjectId", projectId);
+    window.localStorage.setItem(LAST_PROJECT_KEY, projectId);
   }, [projectId]);
 
   const [intention, setIntention] = useState("");
@@ -94,8 +92,8 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
   // Manual duration (minutes)
   const [manualDuration, setManualDuration] = useState("25");
 
-  // Timer state
-  const [useTimer, setUseTimer] = useState(false);
+  // Timer state — DEFAULT: timer mode ON
+  const [useTimer, setUseTimer] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [startTimestamp, setStartTimestamp] = useState<number | null>(null);
@@ -111,14 +109,17 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
     return () => window.clearInterval(id);
   }, [isRunning, startTimestamp]);
 
-  // Reset timer when leaving timer mode
-  useEffect(() => {
-    if (!useTimer) {
+  const handleModeChange = (nextMode: "timer" | "manual") => {
+    const nextUseTimer = nextMode === "timer";
+    setUseTimer(nextUseTimer);
+
+    if (!nextUseTimer) {
+      // leaving timer mode → reset timer state
       setIsRunning(false);
       setElapsedMs(0);
       setStartTimestamp(null);
     }
-  }, [useTimer]);
+  };
 
   const handleStartTimer = () => {
     if (!hasProjects) return;
@@ -147,16 +148,38 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
 
   return (
     <Card className="flex-1">
-      <CardHeader>
-        <div className="flex items-baseline justify-between gap-3">
-          <div>
-            <CardTitle className="text-lg text-[var(--text-primary)]">
-              Log focus session
-            </CardTitle>
-            <p className="mt-1 text-sm text-[var(--text-muted)]">
-              Choose a project, set your intention, and log what you&apos;ve
-              been working on. Use manual minutes or a live timer.
-            </p>
+      <CardHeader className="border-b border-[var(--border-subtle)] pb-4">
+        <CardTitle className="text-lg text-[var(--text-primary)] sm:text-xl">
+          Start a focus timer
+        </CardTitle>
+
+        {/* Bold 1-2-3 steps */}
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <div className="flex items-center gap-2 rounded-full border border-[var(--accent-soft)] bg-[var(--accent-soft)]/30 px-3 py-1.5">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--accent-solid)] text-[0.7rem] font-semibold text-[var(--text-on-accent)]">
+              1
+            </span>
+            <span className="whitespace-nowrap font-medium text-[var(--text-primary)]">
+              Pick a project
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 rounded-full border border-[var(--accent-soft)] bg-[var(--accent-soft)]/30 px-3 py-1.5">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--accent-solid)] text-[0.7rem] font-semibold text-[var(--text-on-accent)]">
+              2
+            </span>
+            <span className="whitespace-nowrap font-medium text-[var(--text-primary)]">
+              Name your focus
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 rounded-full border border-[var(--accent-soft)] bg-[var(--accent-soft)]/30 px-3 py-1.5">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--accent-solid)] text-[0.7rem] font-semibold text-[var(--text-on-accent)]">
+              3
+            </span>
+            <span className="whitespace-nowrap font-medium text-[var(--text-primary)]">
+              Start timer &amp; save
+            </span>
           </div>
         </div>
       </CardHeader>
@@ -224,7 +247,7 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
           {/* Intention */}
           <div>
             <Label className="mb-1 block text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
-              Intention
+              What are you focusing on?
             </Label>
             <Input
               name="intention"
@@ -232,7 +255,7 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
               value={intention}
               onChange={(e) => setIntention(e.target.value)}
               className="w-full border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-strong)]"
-              placeholder="Plan next sprint tasks"
+              placeholder="Example: Draft billing API tests"
             />
           </div>
 
@@ -240,40 +263,37 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <Label className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
-                Duration
+                Session duration
               </Label>
               <div className="flex items-center gap-2 text-[0.7rem] text-[var(--text-muted)]">
-                <span>Mode:</span>
                 <div className="flex gap-1">
                   <Button
                     type="button"
                     size="sm"
                     variant={useTimer ? "ghost" : "secondary"}
                     className={[
-                      "inline-flex items-center gap-1 rounded-full px-2 py-1 text-[0.7rem]",
+                      "rounded-xl px-2 py-1 text-[0.7rem]",
                       !useTimer
                         ? "bg-[var(--accent-solid)] text-[var(--text-on-accent)] shadow-sm hover:bg-[var(--accent-solid)] hover:brightness-75"
                         : "text-[var(--text-muted)] hover:text-[var(--text-primary)]",
                     ].join(" ")}
-                    onClick={() => setUseTimer(false)}
+                    onClick={() => handleModeChange("manual")}
                   >
-                    <Keyboard className="h-3 w-3" />
-                    <span>Manual</span>
+                    Manual
                   </Button>
                   <Button
                     type="button"
                     size="sm"
                     variant={useTimer ? "secondary" : "ghost"}
                     className={[
-                      "inline-flex items-center gap-1 rounded-full px-2 py-1 text-[0.7rem]",
+                      "rounded-xl px-2 py-1 text-[0.7rem]",
                       useTimer
                         ? "bg-[var(--accent-solid)] text-[var(--text-on-accent)] shadow-sm hover:bg-[var(--accent-solid)] hover:brightness-75"
                         : "text-[var(--text-muted)] hover:text-[var(--text-primary)]",
                     ].join(" ")}
-                    onClick={() => setUseTimer(true)}
+                    onClick={() => handleModeChange("timer")}
                   >
-                    <Clock className="h-3 w-3" />
-                    <span>Timer</span>
+                    Timer
                   </Button>
                 </div>
               </div>
@@ -291,14 +311,13 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
                   placeholder="25"
                 />
                 <p className="text-[0.7rem] text-[var(--text-muted)]">
-                  Minutes of focused work. You can also switch to timer mode if
-                  you prefer.
+                  Minutes of focused work. Switch back to timer mode anytime.
                 </p>
               </div>
             ) : (
-              <div className="space-y-2 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-3 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="font-mono text-xl tabular-nums text-[var(--text-primary)]">
+              <div className="space-y-2 rounded-xl border-2 border-[var(--accent-soft)] bg-[var(--bg-surface-soft)] px-4 py-3">
+                <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="font-mono text-3xl tabular-nums text-[var(--text-primary)] sm:text-4xl">
                     {formatElapsed(elapsedMs)}
                   </div>
                   <div className="flex items-center gap-2">
@@ -307,32 +326,29 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
                         type="button"
                         size="sm"
                         disabled={disableForm}
-                        className="inline-flex items-center gap-1 bg-[var(--accent-solid)] text-xs font-medium text-slate-900 hover:brightness-95"
+                        className="h-9 px-4 text-xs font-medium bg-[var(--accent-solid)] text-[var(--text-on-accent)] hover:brightness-95"
                         onClick={handleStartTimer}
                       >
-                        <Play className="h-3 w-3" />
-                        <span>Start</span>
+                        Start timer
                       </Button>
                     ) : (
                       <Button
                         type="button"
                         size="sm"
-                        className="inline-flex items-center gap-1 bg-[var(--accent-solid)] text-xs font-medium text-slate-900 hover:brightness-95"
+                        className="h-9 px-4 text-xs font-medium bg-[var(--accent-solid)] text-[var(--text-on-accent)] hover:brightness-95"
                         onClick={handleStopTimer}
                       >
-                        <Pause className="h-3 w-3" />
-                        <span>Pause</span>
+                        Pause
                       </Button>
                     )}
                     <Button
                       type="button"
                       size="sm"
                       variant="ghost"
-                      className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
+                      className="h-9 px-3 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
                       onClick={handleResetTimer}
                     >
-                      <RotateCcw className="h-3 w-3" />
-                      <span>Reset</span>
+                      Reset
                     </Button>
                   </div>
                 </div>
@@ -372,6 +388,12 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
               </div>
               <div className="mt-0.5 font-mono text-sm text-[var(--text-primary)]">
                 {effectiveDurationMinutes} min
+              </div>
+              <div className="mt-2 text-[0.65rem]">
+                Today so far:{" "}
+                <span className="font-mono text-[var(--text-primary)]">
+                  {formatDuration(totalTodayMs)}
+                </span>
               </div>
             </div>
           </div>
