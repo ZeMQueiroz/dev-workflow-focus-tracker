@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getWeekRange } from "@/lib/time";
 import { getCurrentUserEmail } from "@/lib/server-auth";
+import type { Prisma } from "@prisma/client";
 
 const escapeCsv = (value: string | null | undefined) => {
   if (value == null) return "";
@@ -29,7 +30,8 @@ export const GET = async (request: Request) => {
 
   const { start, end } = getWeekRange(weekOffset);
 
-  const where: Parameters<typeof prisma.session.findMany>[0]["where"] = {
+  // Use Prisma's generated type instead of the Parameters<> trick
+  const where: Prisma.SessionWhereInput = {
     ownerEmail,
     startTime: {
       gte: start,
@@ -37,7 +39,7 @@ export const GET = async (request: Request) => {
     },
   };
 
-  if (projectId) {
+  if (projectId !== null) {
     where.projectId = projectId;
   }
 

@@ -1,4 +1,4 @@
-// app/api/exports/week/pdf/route.tsx
+// src/app/api/exports/week/pdf/route.tsx
 import { NextRequest, NextResponse } from "next/server";
 import {
   pdf,
@@ -12,6 +12,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { getWeekRange, formatDuration } from "@/lib/time";
 import { getCurrentUserEmail } from "@/lib/server-auth";
+import type { Prisma } from "@prisma/client";
 
 type SummaryMode = "self" | "manager" | "client";
 
@@ -280,13 +281,16 @@ const WeeklySummaryPdf = ({
               </View>
 
               {/* Data rows */}
+              {/* Data rows */}
               {projectTotals.map((p, index) => {
                 const isLast = index === projectTotals.length - 1;
+
+                const rowStyle = isLast
+                  ? [styles.tableRow, styles.tableRowLast]
+                  : [styles.tableRow];
+
                 return (
-                  <View
-                    key={p.id}
-                    style={[styles.tableRow, isLast && styles.tableRowLast]}
-                  >
+                  <View key={p.id} style={rowStyle}>
                     <Text style={[styles.tableCell, styles.tableCellWide]}>
                       {p.name}
                     </Text>
@@ -344,14 +348,14 @@ export async function GET(req: NextRequest) {
 
   const { start, end } = getWeekRange(weekOffset);
 
-  const sessionWhere: Parameters<typeof prisma.session.findMany>[0]["where"] = {
+  const sessionWhere: Prisma.SessionWhereInput = {
     ownerEmail,
     startTime: {
       gte: start,
       lt: end,
     },
   };
-  if (projectFilterId) {
+  if (projectFilterId !== null) {
     sessionWhere.projectId = projectFilterId;
   }
 
@@ -438,7 +442,8 @@ export async function GET(req: NextRequest) {
     />
   );
 
-  const pdfBuffer = await pdfInstance.toBuffer();
+  // Use Blob instead of Buffer to satisfy BodyInit
+  const pdfBlob = await pdfInstance.toBlob();
 
   const filenameBase =
     mode === "client"
@@ -452,7 +457,7 @@ export async function GET(req: NextRequest) {
 
   const fileName = `${filenameBase}-${safeStart}-to-${safeEnd}.pdf`;
 
-  return new NextResponse(pdfBuffer, {
+  return new NextResponse(pdfBlob, {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",

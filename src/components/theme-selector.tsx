@@ -44,13 +44,6 @@ const CUSTOM_LIGHT_DEFAULTS: CustomThemeColors = {
 
 const CUSTOM_THEME_STORAGE_KEY = "dwft.custom-theme.v1";
 
-type StoredCustomPayload =
-  | {
-      colors?: CustomThemeColors;
-      baseVariant?: CustomBaseVariant;
-    }
-  | CustomThemeColors;
-
 /**
  * Small helper to choose black or white text on top of a given hex color.
  */
@@ -84,19 +77,12 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-/**
- * Read stored custom theme payload from localStorage (if available).
- */
-function readStoredCustom(): StoredCustomPayload | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(CUSTOM_THEME_STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as StoredCustomPayload;
-  } catch {
-    return null;
-  }
-}
+type StoredCustomPayload =
+  | {
+      colors?: CustomThemeColors;
+      baseVariant?: CustomBaseVariant;
+    }
+  | CustomThemeColors;
 
 /**
  * Hook that:
@@ -106,47 +92,39 @@ function readStoredCustom(): StoredCustomPayload | null {
  * - clears overrides when switching away from "custom"
  */
 function useCustomThemeColors(activeTheme: ThemeId) {
-  const [baseVariant, setBaseVariant] = useState<CustomBaseVariant>(() => {
-    const stored = readStoredCustom();
-    if (
-      stored &&
-      typeof stored === "object" &&
-      "baseVariant" in stored &&
-      (stored.baseVariant === "dark" || stored.baseVariant === "light")
-    ) {
-      return stored.baseVariant;
+  const [colors, setColors] = useState<CustomThemeColors>(CUSTOM_DARK_DEFAULTS);
+  const [baseVariant, setBaseVariant] = useState<CustomBaseVariant>("dark");
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(CUSTOM_THEME_STORAGE_KEY);
+      if (!raw) return;
+      const parsed: StoredCustomPayload = JSON.parse(raw);
+
+      if (parsed && typeof parsed === "object" && "colors" in parsed) {
+        if (parsed.colors) {
+          setColors((prev) => ({
+            ...prev,
+            ...parsed.colors,
+          }));
+        }
+        if (parsed.baseVariant === "dark" || parsed.baseVariant === "light") {
+          setBaseVariant(parsed.baseVariant);
+        }
+      } else if (parsed && typeof parsed === "object") {
+        setColors((prev) => ({
+          ...prev,
+          ...(parsed as CustomThemeColors),
+        }));
+      }
+    } catch {
+      // ignore
     }
-    return "dark";
-  });
+  }, []);
 
-  const [colors, setColors] = useState<CustomThemeColors>(() => {
-    const stored = readStoredCustom();
-
-    // If we have new-format storage with baseVariant + colors
-    if (stored && typeof stored === "object" && "colors" in stored) {
-      const base =
-        stored.baseVariant === "light"
-          ? CUSTOM_LIGHT_DEFAULTS
-          : CUSTOM_DARK_DEFAULTS;
-
-      return {
-        ...base,
-        ...(stored.colors ?? {}),
-      };
-    }
-
-    // Old format: we stored the colors directly
-    if (stored && typeof stored === "object") {
-      return {
-        ...CUSTOM_DARK_DEFAULTS,
-        ...(stored as CustomThemeColors),
-      };
-    }
-
-    // Fallback
-    return CUSTOM_DARK_DEFAULTS;
-  });
-
+  // Apply CSS vars + persist when active theme is "custom"
   useEffect(() => {
     if (typeof document === "undefined") return;
 
@@ -202,9 +180,15 @@ function useCustomThemeColors(activeTheme: ThemeId) {
 }
 
 const ThemeSelector = () => {
-  const { theme, setTheme } = useTheme();
+  // Pull from our theme provider, but widen types locally
+  const { theme: rawTheme, setTheme: rawSetTheme } = useTheme();
+
+  // Fallback to "slate" if theme is undefined on first render
+  const theme = (rawTheme ?? "slate") as ThemeId;
+  const setTheme = (id: ThemeId) => rawSetTheme(id as any);
+
   const [customColors, setCustomColors, customBase, setCustomBase] =
-    useCustomThemeColors(theme as ThemeId);
+    useCustomThemeColors(theme);
 
   const handleColorChange = (key: keyof CustomThemeColors, value: string) => {
     setCustomColors((prev) => ({

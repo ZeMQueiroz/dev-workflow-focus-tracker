@@ -10,8 +10,8 @@ import {
   PieChart,
   Pie,
   Cell,
-  Tooltip as RechartsTooltip,
 } from "recharts";
+
 import {
   ChartContainer,
   ChartTooltip,
@@ -58,7 +58,7 @@ const projectPalette = [
   "var(--chart-5)",
 ];
 
-const SummaryCharts = ({ perDay, perProject }: SummaryChartsProps) => {
+export const SummaryCharts = ({ perDay, perProject }: SummaryChartsProps) => {
   if (perDay.length === 0 && perProject.length === 0) return null;
 
   return (
@@ -96,14 +96,12 @@ const SummaryCharts = ({ perDay, perProject }: SummaryChartsProps) => {
                 tick={{ fontSize: 11, fill: "var(--text-muted)" }}
                 tickFormatter={(v) => `${v}m`}
               />
-              <RechartsTooltip
-                // 👇 disables the grey hover overlay, keeps tooltip
+              <ChartTooltip
                 cursor={false}
                 content={
                   <ChartTooltipContent
-                    indicator="dot"
-                    labelFormatter={(value) => `Day: ${value}`}
-                    formatter={(value) => [`${value as number} min`, "Minutes"]}
+                    labelFormatter={(value) => `Day: ${String(value ?? "")}`}
+                    formatter={(value) => `${value as number} min`}
                   />
                 }
               />
@@ -144,7 +142,7 @@ const SummaryCharts = ({ perDay, perProject }: SummaryChartsProps) => {
                 <ChartTooltip
                   content={
                     <ChartTooltipContent
-                      formatter={(value) => `${formatMinutesLabel(value)}`}
+                      formatter={(value) => formatMinutesLabel(value as number)}
                     />
                   }
                 />
@@ -200,4 +198,7 @@ const SummaryCharts = ({ perDay, perProject }: SummaryChartsProps) => {
   );
 };
 
-export { SummaryCharts };
+// Optional default export so both of these work:
+//   import { SummaryCharts } from "@/components/summary-charts";
+//   import SummaryCharts from "@/components/summary-charts";
+export default SummaryCharts;

@@ -19,7 +19,8 @@ const SettingsPage = async () => {
   const session = await getServerSession(authOptions);
   const ownerEmail = await getCurrentUserEmail();
 
-  if (!session || !ownerEmail) {
+  // ✅ Also require session.user so TS knows it's defined below
+  if (!session?.user || !ownerEmail) {
     return (
       <div className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6 text-sm text-[var(--text-muted)]">
         <h1 className="text-lg font-semibold text-[var(--text-primary)]">
@@ -34,6 +35,7 @@ const SettingsPage = async () => {
     );
   }
 
+  // From here on, TS knows user is non-null
   const user = session.user;
   const { start, end } = getWeekRange(0);
 

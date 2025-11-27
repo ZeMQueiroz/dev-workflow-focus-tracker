@@ -30,9 +30,6 @@ type ChartContainerProps = React.HTMLAttributes<HTMLDivElement> & {
   config: ChartConfig;
 };
 
-// Allow arbitrary CSS custom properties while keeping CSSProperties typing
-type CSSVarStyle = React.CSSProperties & Record<string, string | number>;
-
 export const ChartContainer = ({
   config,
   className,
@@ -40,11 +37,11 @@ export const ChartContainer = ({
   ...props
 }: ChartContainerProps) => {
   // Map config keys → CSS variables like --color-time, --color-foo
-  const style = React.useMemo<CSSVarStyle>(() => {
-    const s: CSSVarStyle = {} as CSSVarStyle;
+  const style = React.useMemo<React.CSSProperties>(() => {
+    const s: React.CSSProperties = {};
     for (const [key, value] of Object.entries(config)) {
       if (value?.color) {
-        s[`--color-${key}`] = value.color;
+        (s as any)[`--color-${key}`] = value.color;
       }
     }
     return s;
@@ -66,8 +63,34 @@ export const ChartContainer = ({
   );
 };
 
-export type ChartTooltipContentProps = TooltipProps<number, string> & {
-  formatter?: (value: number, name: string) => React.ReactNode;
+/* ------------------------------------------------------------------ */
+/* Tooltip                                                            */
+/* ------------------------------------------------------------------ */
+
+type ChartTooltipItem = {
+  color?: string;
+  name?: React.ReactNode;
+  value?: number;
+};
+
+export type ChartTooltipContentProps = {
+  /** Whether the tooltip is visible (from Recharts). */
+  active?: boolean;
+  /** Label for the current point (from Recharts). */
+  label?: string | number | React.ReactNode;
+  /** Series payload entries (from Recharts). */
+  payload?: ChartTooltipItem[];
+
+  /** Custom value formatter. Return any ReactNode. */
+  formatter?: (value: number, name?: string) => React.ReactNode;
+
+  /** Optional indicator style (kept for API compatibility). */
+  indicator?: "dot" | "line" | "none";
+
+  /** Optional label formatter for the tooltip header. */
+  labelFormatter?: (
+    label: string | number | React.ReactNode
+  ) => React.ReactNode;
 };
 
 export const ChartTooltipContent = ({
@@ -75,14 +98,18 @@ export const ChartTooltipContent = ({
   label,
   payload,
   formatter,
+  indicator = "dot",
+  labelFormatter,
 }: ChartTooltipContentProps) => {
   if (!active || !payload || payload.length === 0) return null;
 
+  const header = labelFormatter ? labelFormatter(label ?? "") : label;
+
   return (
     <div className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-2 text-xs text-[var(--text-primary)] shadow-sm">
-      {label && (
+      {header && (
         <div className="mb-1 text-[0.7rem] font-medium text-[var(--text-muted)]">
-          {label}
+          {header}
         </div>
       )}
 
@@ -90,7 +117,7 @@ export const ChartTooltipContent = ({
         {payload.map((item, index) => {
           const color = item.color ?? "var(--accent-solid)";
           const name = String(item.name ?? "");
-          const rawValue = item.value as number;
+          const rawValue = (item.value ?? 0) as number;
           const rendered = formatter ? formatter(rawValue, name) : rawValue;
 
           return (
@@ -99,10 +126,12 @@ export const ChartTooltipContent = ({
               className="flex items-center justify-between gap-2"
             >
               <span className="flex items-center gap-1">
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: color }}
-                />
+                {indicator !== "none" && (
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: color }}
+                  />
+                )}
                 <span className="text-[var(--text-muted)]">{name}</span>
               </span>
               <span className="font-mono">{rendered}</span>

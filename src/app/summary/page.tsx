@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { SummaryModeToggle } from "@/components/summary-mode-toggle";
 import { InlineSignInButton } from "@/components/inline-sign-in-button";
 import { SummaryCharts } from "@/components/summary-charts";
+
 import {
   Timer,
   FolderKanban,
@@ -19,6 +20,7 @@ import {
   ChevronRight,
   CalendarRange,
 } from "lucide-react";
+import type { Prisma } from "@prisma/client";
 
 type SummaryMode = "self" | "manager" | "client";
 type SummaryView = "full" | "totals" | "projects" | "days";
@@ -32,11 +34,8 @@ type SummaryPageSearchParams = {
 };
 
 type SummaryPageProps = {
-  // Next 16: searchParams is a Promise
   searchParams: Promise<SummaryPageSearchParams>;
 };
-
-/* ---------------- Server action: save weekly highlight ---------------- */
 
 const saveWeeklyHighlight = async (formData: FormData) => {
   "use server";
@@ -85,8 +84,6 @@ const saveWeeklyHighlight = async (formData: FormData) => {
 
   revalidatePath("/summary");
 };
-
-/* ---------------- Page component ---------------- */
 
 const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
   const resolvedSearchParams = await searchParams;
@@ -153,15 +150,15 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
 
   const { start, end } = getWeekRange(weekOffset);
 
-  // Build filters for sessions
-  const sessionWhere: Parameters<typeof prisma.session.findMany>[0]["where"] = {
+  // Build filters for sessions – ✅ use Prisma.SessionWhereInput
+  const sessionWhere: Prisma.SessionWhereInput = {
     ownerEmail,
     startTime: {
       gte: start,
       lt: end,
     },
   };
-  if (projectFilterId) {
+  if (projectFilterId !== null) {
     sessionWhere.projectId = projectFilterId;
   }
 
@@ -311,7 +308,8 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
     params.set("offset", String(offset));
     if (mode !== "self") params.set("mode", mode);
     if (view !== "full") params.set("view", view);
-    if (projectFilterId) params.set("projectId", String(projectFilterId));
+    if (projectFilterId !== null)
+      params.set("projectId", String(projectFilterId));
     if (clientName) params.set("clientName", clientName);
     const qs = params.toString();
     return qs ? `/summary?${qs}` : "/summary";
@@ -322,7 +320,8 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
     params.set("offset", String(weekOffset));
     if (mode !== "self") params.set("mode", mode);
     if (newView !== "full") params.set("view", newView);
-    if (projectFilterId) params.set("projectId", String(projectFilterId));
+    if (projectFilterId !== null)
+      params.set("projectId", String(projectFilterId));
     if (clientName) params.set("clientName", clientName);
     const qs = params.toString();
     return qs ? `/summary?${qs}` : "/summary";
@@ -332,7 +331,8 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
     const params = new URLSearchParams();
     if (weekOffset) params.set("offset", String(weekOffset));
     if (mode !== "self") params.set("mode", mode);
-    if (projectFilterId) params.set("projectId", String(projectFilterId));
+    if (projectFilterId !== null)
+      params.set("projectId", String(projectFilterId));
     if (clientName) params.set("clientName", clientName);
     const qs = params.toString();
     return `/api/exports/week/${format}${qs ? `?${qs}` : ""}`;
@@ -342,7 +342,8 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
     const params = new URLSearchParams();
     if (weekOffset) params.set("offset", String(weekOffset));
     if (mode !== "self") params.set("mode", mode);
-    if (projectFilterId) params.set("projectId", String(projectFilterId));
+    if (projectFilterId !== null)
+      params.set("projectId", String(projectFilterId));
     if (clientName) params.set("client", clientName);
     const qs = params.toString();
     return `/api/exports/week/pdf${qs ? `?${qs}` : ""}`;
@@ -436,7 +437,6 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
   return (
     <Card className="w-full">
       <CardHeader className="space-y-4">
-        {/* Top title + week nav */}
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="space-y-1 md:max-w-2xl">
             <CardTitle className="text-lg text-[var(--text-primary)]">
@@ -502,14 +502,10 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
           </div>
         </div>
 
-        {/* Toolbar: tone, content, project filter, copy/export */}
         <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-4 py-3">
-          {/* Row 1: tone + copy/export */}
           <div className="flex flex-wrap items-center justify-between gap-4">
-            {/* Tone toggle (self / manager / client) */}
             <SummaryModeToggle currentMode={mode} />
 
-            {/* Copy + exports */}
             <div className="flex flex-wrap items-center gap-3">
               <CopySummaryButton text={markdown} />
               <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
@@ -544,7 +540,6 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
             </div>
           </div>
 
-          {/* Content view toggle */}
           <div className="mt-3 flex items-center gap-2 text-xs">
             <span className="text-[0.7rem] uppercase tracking-wide text-[var(--text-muted)]">
               Content
@@ -597,7 +592,6 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
             </div>
           </div>
 
-          {/* Row 2: project filter + client label */}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs">
             <form
               method="get"
@@ -659,7 +653,6 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
       </CardHeader>
 
       <CardContent>
-        {/* Top stats */}
         <div className="mt-2 grid gap-4 md:grid-cols-3">
           <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3">
             <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
@@ -692,7 +685,6 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
           </div>
         </div>
 
-        {/* Weekly highlight */}
         <div className="mt-6">
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">
             Weekly highlight
@@ -723,7 +715,6 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
           </form>
         </div>
 
-        {/* Analytics charts */}
         {sessionsCount > 0 && (
           <SummaryCharts
             perDay={perDayChartData}
@@ -808,7 +799,6 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
           </div>
         )}
 
-        {/* Markdown preview */}
         <div className="mt-6">
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">
             Markdown summary
