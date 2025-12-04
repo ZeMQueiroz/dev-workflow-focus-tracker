@@ -21,10 +21,16 @@ import {
   ChevronRight,
   CalendarRange,
 } from "lucide-react";
+
 import type { Prisma } from "@prisma/client";
 
 type SummaryMode = "self" | "manager" | "client";
 type SummaryView = "full" | "totals" | "projects" | "days";
+
+// ✅ Correct type for sessions with included project
+type SessionWithProject = Prisma.SessionGetPayload<{
+  include: { project: true };
+}>;
 
 type SummaryPageSearchParams = {
   offset?: string;
@@ -60,34 +66,21 @@ const saveWeeklyHighlight = async (formData: FormData) => {
   try {
     if (!trimmedHighlight) {
       await prisma.weeklyHighlight.deleteMany({
-        where: {
-          ownerEmail,
-          weekStart,
-        },
+        where: { ownerEmail, weekStart },
       });
     } else {
       await prisma.weeklyHighlight.upsert({
         where: {
-          ownerEmail_weekStart: {
-            ownerEmail,
-            weekStart,
-          },
+          ownerEmail_weekStart: { ownerEmail, weekStart },
         },
-        update: {
-          highlight: trimmedHighlight,
-        },
-        create: {
-          ownerEmail,
-          weekStart,
-          highlight: trimmedHighlight,
-        },
+        update: { highlight: trimmedHighlight },
+        create: { ownerEmail, weekStart, highlight: trimmedHighlight },
       });
     }
 
     revalidatePath("/summary");
   } catch (err) {
     console.error("saveWeeklyHighlight failed:", err);
-    // Fail silent in UI – just don't crash the page
   }
 };
 
@@ -102,13 +95,9 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
   const weekOffset = rawOffset ? Number(rawOffset) || 0 : 0;
 
   let mode: SummaryMode;
-  if (rawMode === "manager") {
-    mode = "manager";
-  } else if (rawMode === "client") {
-    mode = "client";
-  } else {
-    mode = "self";
-  }
+  if (rawMode === "manager") mode = "manager";
+  else if (rawMode === "client") mode = "client";
+  else mode = "self";
 
   const isManagerMode = mode === "manager";
   const isClientMode = mode === "client";
@@ -121,7 +110,6 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
       ? rawView
       : "full";
 
-  // For client mode, keep the content more high-level
   if (isClientMode && (view === "full" || view === "days")) {
     view = "totals";
   }
@@ -156,26 +144,32 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
 
   const { start, end } = getWeekRange(weekOffset);
 
-  // Build filters for sessions – ✅ use Prisma.SessionWhereInput
   const sessionWhere: Prisma.SessionWhereInput = {
     ownerEmail,
-    startTime: {
-      gte: start,
-      lt: end,
-    },
+    startTime: { gte: start, lt: end },
   };
+
   if (projectFilterId !== null) {
     sessionWhere.projectId = projectFilterId;
   }
 
   // -------------------------------------------------------------------
-  // DB LOAD – sequential + try/catch so pool timeouts don't crash page
+  // DB LOAD
   // -------------------------------------------------------------------
-  let sessions: Awaited<ReturnType<typeof prisma.session.findMany>> = [];
-  let weeklyHighlightRecord: Awaited<
-    ReturnType<typeof prisma.weeklyHighlight.findUnique>
-  > | null = null;
-  let projects: Awaited<ReturnType<typeof prisma.project.findMany>> = [];
+
+  // ❌ OLD (WRONG)
+  // let sessions: Awaited<ReturnType<typeof prisma.session.findMany>> = [];
+
+  // ✅ NEW (FIXED)
+  let sessions: SessionWithProject[] = [];
+
+  let weeklyHighlightRecord = null;
+  interface ProjectListItem {
+    id: number;
+    name: string;
+  }
+
+  let projects: ProjectListItem[] = [];
   let proStatus: Awaited<ReturnType<typeof getUserProStatus>> = {
     isPro: false,
     plan: "FREE",
@@ -183,22 +177,15 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
   };
 
   try {
-    sessions = await prisma.session.findMany({
+    sessions = (await prisma.session.findMany({
       where: sessionWhere,
-      include: {
-        project: true,
-      },
-      orderBy: {
-        startTime: "asc",
-      },
-    });
+      include: { project: true },
+      orderBy: { startTime: "asc" },
+    })) as SessionWithProject[];
 
     weeklyHighlightRecord = await prisma.weeklyHighlight.findUnique({
       where: {
-        ownerEmail_weekStart: {
-          ownerEmail,
-          weekStart: start,
-        },
+        ownerEmail_weekStart: { ownerEmail, weekStart: start },
       },
     });
 
@@ -209,12 +196,12 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
 
     proStatus = await getUserProStatus(ownerEmail);
   } catch (err) {
-    console.error(
-      "SummaryPage: failed to load summary data, rendering fallback with empty stats.",
-      err
-    );
-    // We keep the default empty arrays / FREE status so page still renders.
+    console.error("SummaryPage: failed to load summary data.", err);
   }
+
+  // --- ALL REMAINING CODE IS UNCHANGED BELOW THIS POINT -------------------
+  // (Your whole file continues EXACTLY as before)
+  // ------------------------------------------------------------------------
 
   const highlightText = weeklyHighlightRecord?.highlight ?? "";
   const { isPro } = proStatus;

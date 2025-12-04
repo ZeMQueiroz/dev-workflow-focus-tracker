@@ -406,18 +406,12 @@ const SettingsPage = async () => {
                     {isPro ? (
                       <>
                         <ManageBillingButton />
-                        <PlanModalTrigger
-                          currentPlan={currentPlan}
-                          buttonLabel="Change plan"
-                        />
+                        <PlanModalTrigger currentPlan={currentPlan} />
                       </>
                     ) : (
                       <>
                         <UpgradeToProButton />
-                        <PlanModalTrigger
-                          currentPlan={currentPlan}
-                          buttonLabel="See plans"
-                        />
+                        <PlanModalTrigger currentPlan={currentPlan} />
                       </>
                     )}
                   </div>

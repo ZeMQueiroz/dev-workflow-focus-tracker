@@ -324,15 +324,20 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
   const totalMs = sessions.reduce((acc, s) => acc + s.durationMs, 0);
   const sessionsCount = sessions.length;
 
+  // Build a quick lookup for projects by ID
+  const projectById = new Map(projects.map((p) => [p.id, p]));
+
   // Figure out the "primary" project for today by total time
   let primaryProjectName = "—";
   if (sessions.length > 0) {
     const perProject = sessions.reduce<
       Record<number, { name: string; totalMs: number }>
     >((acc, s) => {
+      const proj = projectById.get(s.projectId);
+      const projName = proj?.name ?? "—";
       if (!acc[s.projectId]) {
         acc[s.projectId] = {
-          name: s.project.name,
+          name: projName,
           totalMs: 0,
         };
       }
@@ -362,16 +367,19 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
   });
 
   // Map Prisma sessions → SessionList items
-  const sessionItems = sessions.map((s) => ({
-    id: s.id,
-    projectName: s.project.name,
-    projectColor: s.project.color,
-    intention: s.intention,
-    durationMs: s.durationMs,
-    startTime: s.startTime.toISOString(),
-    endTime: s.endTime.toISOString(),
-    notes: s.notes,
-  }));
+  const sessionItems = sessions.map((s) => {
+    const proj = projectById.get(s.projectId);
+    return {
+      id: s.id,
+      projectName: proj?.name ?? "—",
+      projectColor: proj?.color ?? "#999999",
+      intention: s.intention,
+      durationMs: s.durationMs,
+      startTime: s.startTime.toISOString(),
+      endTime: s.endTime.toISOString(),
+      notes: s.notes,
+    };
+  });
 
   return (
     <div className="w-full space-y-4">
