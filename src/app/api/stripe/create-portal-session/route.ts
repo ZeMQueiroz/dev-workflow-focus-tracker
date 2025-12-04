@@ -13,7 +13,8 @@ export async function POST() {
 
   const ownerEmail = session.user.email;
 
-  const userSettings = await prisma.userSettings.findUnique({
+  // Access via index to avoid stale Prisma types during generation
+  const userSettings = await (prisma as any).userSettings.findUnique({
     where: { ownerEmail },
   });
 
