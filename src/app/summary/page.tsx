@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { SummaryModeToggle } from "@/components/summary-mode-toggle";
 import { InlineSignInButton } from "@/components/inline-sign-in-button";
 import { SummaryCharts } from "@/components/summary-charts";
+import { getUserProStatus } from "@/lib/subscription";
 
 import {
   Timer,
@@ -56,33 +57,38 @@ const saveWeeklyHighlight = async (formData: FormData) => {
     return;
   }
 
-  if (!trimmedHighlight) {
-    await prisma.weeklyHighlight.deleteMany({
-      where: {
-        ownerEmail,
-        weekStart,
-      },
-    });
-  } else {
-    await prisma.weeklyHighlight.upsert({
-      where: {
-        ownerEmail_weekStart: {
+  try {
+    if (!trimmedHighlight) {
+      await prisma.weeklyHighlight.deleteMany({
+        where: {
           ownerEmail,
           weekStart,
         },
-      },
-      update: {
-        highlight: trimmedHighlight,
-      },
-      create: {
-        ownerEmail,
-        weekStart,
-        highlight: trimmedHighlight,
-      },
-    });
-  }
+      });
+    } else {
+      await prisma.weeklyHighlight.upsert({
+        where: {
+          ownerEmail_weekStart: {
+            ownerEmail,
+            weekStart,
+          },
+        },
+        update: {
+          highlight: trimmedHighlight,
+        },
+        create: {
+          ownerEmail,
+          weekStart,
+          highlight: trimmedHighlight,
+        },
+      });
+    }
 
-  revalidatePath("/summary");
+    revalidatePath("/summary");
+  } catch (err) {
+    console.error("saveWeeklyHighlight failed:", err);
+    // Fail silent in UI – just don't crash the page
+  }
 };
 
 const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
@@ -162,8 +168,22 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
     sessionWhere.projectId = projectFilterId;
   }
 
-  const [sessions, weeklyHighlight, projects] = await Promise.all([
-    prisma.session.findMany({
+  // -------------------------------------------------------------------
+  // DB LOAD – sequential + try/catch so pool timeouts don't crash page
+  // -------------------------------------------------------------------
+  let sessions: Awaited<ReturnType<typeof prisma.session.findMany>> = [];
+  let weeklyHighlightRecord: Awaited<
+    ReturnType<typeof prisma.weeklyHighlight.findUnique>
+  > | null = null;
+  let projects: Awaited<ReturnType<typeof prisma.project.findMany>> = [];
+  let proStatus: Awaited<ReturnType<typeof getUserProStatus>> = {
+    isPro: false,
+    plan: "FREE",
+    proExpiresAt: null,
+  };
+
+  try {
+    sessions = await prisma.session.findMany({
       where: sessionWhere,
       include: {
         project: true,
@@ -171,24 +191,36 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
       orderBy: {
         startTime: "asc",
       },
-    }),
-    prisma.weeklyHighlight.findUnique({
+    });
+
+    weeklyHighlightRecord = await prisma.weeklyHighlight.findUnique({
       where: {
         ownerEmail_weekStart: {
           ownerEmail,
           weekStart: start,
         },
       },
-    }),
-    prisma.project.findMany({
+    });
+
+    projects = await prisma.project.findMany({
       where: { ownerEmail, isArchived: false },
       orderBy: { name: "asc" },
-    }),
-  ]);
+    });
 
-  const highlightText = weeklyHighlight?.highlight ?? "";
+    proStatus = await getUserProStatus(ownerEmail);
+  } catch (err) {
+    console.error(
+      "SummaryPage: failed to load summary data, rendering fallback with empty stats.",
+      err
+    );
+    // We keep the default empty arrays / FREE status so page still renders.
+  }
+
+  const highlightText = weeklyHighlightRecord?.highlight ?? "";
+  const { isPro } = proStatus;
 
   const totalMs = sessions.reduce((acc, s) => acc + s.durationMs, 0);
+  const totalMinutes = Math.round(totalMs / 60000);
   const sessionsCount = sessions.length;
 
   const projectTotals = sessions.reduce<
@@ -256,7 +288,7 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
       (acc, s) => acc + s.durationMs,
       0
     );
-    const totalMinutes = Math.round(totalMsForDay / 60000);
+    const minutesForDay = Math.round(totalMsForDay / 60000);
 
     // day.label is like "Mon, Nov 18" – take "Mon"
     const shortLabel = day.label.split(",")[0];
@@ -264,7 +296,7 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
     return {
       key: day.key,
       label: shortLabel,
-      totalMinutes,
+      totalMinutes: minutesForDay,
     };
   });
 
@@ -272,6 +304,25 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
     name: p.name,
     totalMinutes: Math.round(p.totalMs / 60000),
   }));
+
+  // Derived weekly stats for "Totals" section
+  const daysWithSessions = dayGroups.length;
+  const avgMinutesPerActiveDay =
+    daysWithSessions > 0 ? Math.round(totalMinutes / daysWithSessions) : 0;
+  const avgMinutesPerSession =
+    sessionsCount > 0 ? Math.round(totalMinutes / sessionsCount) : 0;
+
+  const busiestDayEntry =
+    perDayChartData.length > 0
+      ? perDayChartData.reduce((max, d) =>
+          d.totalMinutes > max.totalMinutes ? d : max
+        )
+      : null;
+
+  const topProjectEntry =
+    projectTotalsArray.length > 0
+      ? [...projectTotalsArray].sort((a, b) => b.totalMs - a.totalMs)[0]
+      : null;
 
   const weekStartLabel = start.toLocaleDateString("en-US", {
     year: "numeric",
@@ -405,7 +456,11 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
     if (includeDays) {
       markdown += `## ${sessionsByDayHeading}\n\n`;
       dayGroups.forEach((day) => {
-        markdown += `### ${day.label}\n`;
+        const totalMsForDay = day.sessions.reduce(
+          (acc, s) => acc + s.durationMs,
+          0
+        );
+        markdown += `### ${day.label} (${formatDuration(totalMsForDay)})\n`;
         day.sessions.forEach((s) => {
           const timeLabel = s.startTime.toLocaleTimeString([], {
             hour: "2-digit",
@@ -439,8 +494,13 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
       <CardHeader className="space-y-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="space-y-1 md:max-w-2xl">
-            <CardTitle className="text-lg text-[var(--text-primary)]">
-              Weekly summary
+            <CardTitle className="flex items-center gap-2 text-lg text-[var(--text-primary)]">
+              <span>Weekly summary</span>
+              {isPro && (
+                <span className="inline-flex items-center rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-[var(--text-on-accent)]">
+                  Pro
+                </span>
+              )}
             </CardTitle>
             <p className="mt-1 text-sm text-[var(--text-muted)]">
               {pageSubtitle}
@@ -501,101 +561,69 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
             </Button>
           </div>
         </div>
+      </CardHeader>
 
-        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-4 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <SummaryModeToggle currentMode={mode} />
-
-            <div className="flex flex-wrap items-center gap-3">
-              <CopySummaryButton text={markdown} />
-              <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
-                <span className="text-[0.7rem] uppercase tracking-wide">
-                  Exports
-                </span>
-                <Button
-                  asChild
-                  size="sm"
-                  variant="outline"
-                  className="h-7 border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-2 text-[0.7rem] text-[var(--text-primary)] hover:bg-[var(--bg-surface)]"
+      <CardContent>
+        {/* Content view + filters */}
+        <div className="mb-6 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-4 py-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            {/* Content view chips */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-[0.7rem] uppercase tracking-wide text-[var(--text-muted)]">
+                Content
+              </span>
+              <div className="inline-flex rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-0.5">
+                <Link
+                  href={buildHrefForView("full")}
+                  className={[
+                    "rounded-full px-2.5 py-1 text-[0.7rem]",
+                    view === "full"
+                      ? "bg-[var(--accent-solid)] text-[var(--text-on-accent)]"
+                      : "text-[var(--text-muted)] hover:bg-[var(--bg-surface-soft)]",
+                  ].join(" ")}
                 >
-                  <a href={csvHref}>CSV</a>
-                </Button>
-                <Button
-                  asChild
-                  size="sm"
-                  variant="outline"
-                  className="h-7 border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-2 text-[0.7rem] text-[var(--text-primary)] hover:bg-[var(--bg-surface)]"
+                  Full
+                </Link>
+                <Link
+                  href={buildHrefForView("totals")}
+                  className={[
+                    "rounded-full px-2.5 py-1 text-[0.7rem]",
+                    view === "totals"
+                      ? "bg-[var(--accent-solid)] text-[var(--text-on-accent)]"
+                      : "text-[var(--text-muted)] hover:bg-[var(--bg-surface-soft)]",
+                  ].join(" ")}
                 >
-                  <a href={jsonHref}>JSON</a>
-                </Button>
-                <Button
-                  asChild
-                  size="sm"
-                  variant="outline"
-                  className="h-7 border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-2 text-[0.7rem] text-[var(--text-primary)] hover:bg-[var(--bg-surface)]"
+                  Totals
+                </Link>
+                <Link
+                  href={buildHrefForView("projects")}
+                  className={[
+                    "rounded-full px-2.5 py-1 text-[0.7rem]",
+                    view === "projects"
+                      ? "bg-[var(--accent-solid)] text-[var(--text-on-accent)]"
+                      : "text-[var(--text-muted)] hover:bg-[var(--bg-surface-soft)]",
+                  ].join(" ")}
                 >
-                  <a href={pdfHref}>{isClientMode ? "Client PDF" : "PDF"}</a>
-                </Button>
+                  Projects
+                </Link>
+                <Link
+                  href={buildHrefForView("days")}
+                  className={[
+                    "rounded-full px-2.5 py-1 text-[0.7rem]",
+                    view === "days"
+                      ? "bg-[var(--accent-solid)] text-[var(--text-on-accent)]"
+                      : "text-[var(--text-muted)] hover:bg-[var(--bg-surface-soft)]",
+                  ].join(" ")}
+                >
+                  Days
+                </Link>
               </div>
             </div>
-          </div>
 
-          <div className="mt-3 flex items-center gap-2 text-xs">
-            <span className="text-[0.7rem] uppercase tracking-wide text-[var(--text-muted)]">
-              Content
-            </span>
-            <div className="inline-flex rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-0.5">
-              <Link
-                href={buildHrefForView("full")}
-                className={[
-                  "rounded-full px-2.5 py-1 text-[0.7rem]",
-                  view === "full"
-                    ? "bg-[var(--accent-solid)] text-[var(--text-on-accent)]"
-                    : "text-[var(--text-muted)] hover:bg-[var(--bg-surface-soft)]",
-                ].join(" ")}
-              >
-                Full
-              </Link>
-              <Link
-                href={buildHrefForView("totals")}
-                className={[
-                  "rounded-full px-2.5 py-1 text-[0.7rem]",
-                  view === "totals"
-                    ? "bg-[var(--accent-solid)] text-[var(--text-on-accent)]"
-                    : "text-[var(--text-muted)] hover:bg-[var(--bg-surface-soft)]",
-                ].join(" ")}
-              >
-                Totals
-              </Link>
-              <Link
-                href={buildHrefForView("projects")}
-                className={[
-                  "rounded-full px-2.5 py-1 text-[0.7rem]",
-                  view === "projects"
-                    ? "bg-[var(--accent-solid)] text-[var(--text-on-accent)]"
-                    : "text-[var(--text-muted)] hover:bg-[var(--bg-surface-soft)]",
-                ].join(" ")}
-              >
-                Projects
-              </Link>
-              <Link
-                href={buildHrefForView("days")}
-                className={[
-                  "rounded-full px-2.5 py-1 text-[0.7rem]",
-                  view === "days"
-                    ? "bg-[var(--accent-solid)] text-[var(--text-on-accent)]"
-                    : "text-[var(--text-muted)] hover:bg-[var(--bg-surface-soft)]",
-                ].join(" ")}
-              >
-                Days
-              </Link>
-            </div>
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+            {/* Project / client filter */}
             <form
               method="get"
-              className="flex flex-wrap items-center gap-2 text-[var(--text-muted)]"
+              className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]"
             >
               <input type="hidden" name="offset" value={String(weekOffset)} />
               {mode !== "self" && (
@@ -623,8 +651,8 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
 
               {isClientMode && (
                 <>
-                  <span className="ml-2 text-[0.7rem] uppercase tracking-wide">
-                    Client label
+                  <span className="ml-1 text-[0.7rem] uppercase tracking-wide">
+                    Client
                   </span>
                   <input
                     name="clientName"
@@ -639,21 +667,20 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
                 type="submit"
                 size="sm"
                 variant="outline"
-                className="h-7 border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-2 text-[0.7rem] text-[var(--text-primary)] hover:bg-[var(--bg-surface)]"
+                className="h-7 border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-[0.7rem] text-[var(--text-primary)] hover:bg-[var(--bg-surface-soft)]"
               >
                 Apply
               </Button>
             </form>
-
-            <p className="text-[0.7rem] text-[var(--text-muted)]">
-              Filter applies to the view, Markdown, and exports.
-            </p>
           </div>
-        </div>
-      </CardHeader>
 
-      <CardContent>
-        <div className="mt-2 grid gap-4 md:grid-cols-3">
+          <p className="mt-3 text-[0.7rem] text-[var(--text-muted)]">
+            Filters apply to stats, charts, breakdowns, Markdown, and exports.
+          </p>
+        </div>
+
+        {/* Top stats */}
+        <div className="grid gap-4 md:grid-cols-3">
           <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3">
             <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
               <Timer className="h-4 w-4" />
@@ -685,44 +712,97 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
           </div>
         </div>
 
-        <div className="mt-6">
-          <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-            Weekly highlight
-          </h2>
-          <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Capture the one or two things that mattered most this week. This
-            text appears at the top of your Markdown export and client PDF.
-          </p>
-
-          <form action={saveWeeklyHighlight} className="mt-2 space-y-2 text-sm">
-            <textarea
-              name="highlight"
-              defaultValue={highlightText}
-              placeholder="Shipped v1 of the billing page, closed out tech debt on auth, and unblocked the team on the deployment pipeline."
-              className="h-24 w-full resize-none rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3 text-xs font-normal text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
-            />
-            <input type="hidden" name="weekStart" value={start.toISOString()} />
-            <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-              <span>Leave empty to remove the highlight for this week.</span>
-              <Button
-                type="submit"
-                size="sm"
-                className="bg-[var(--accent-solid)] text-xs font-medium text-[var(--text-on-accent)] hover:brightness-110"
-              >
-                Save highlight
-              </Button>
-            </div>
-          </form>
-        </div>
-
+        {/* Charts */}
         {sessionsCount > 0 && (
           <SummaryCharts
+            key={`${weekOffset}-${projectFilterId ?? "all"}-${view}-${mode}`}
             perDay={perDayChartData}
             perProject={perProjectChartData}
           />
         )}
 
-        {/* By project – breakdown */}
+        {/* Totals breakdown (for Full + Totals views) */}
+        {includeTotals && sessionsCount > 0 && (
+          <div className="mt-6 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-4">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                Weekly totals
+              </h2>
+              <p className="text-[0.7rem] text-[var(--text-muted)]">
+                High-level stats for this range.
+              </p>
+            </div>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+              <div className="rounded-lg bg-[var(--bg-surface)] px-3 py-2">
+                <div className="text-[0.7rem] text-[var(--text-muted)]">
+                  Days with focus
+                </div>
+                <div className="mt-1 text-sm font-medium text-[var(--text-primary)]">
+                  {daysWithSessions || 0}
+                </div>
+              </div>
+
+              <div className="rounded-lg bg-[var(--bg-surface)] px-3 py-2">
+                <div className="text-[0.7rem] text-[var(--text-muted)]">
+                  Avg per active day
+                </div>
+                <div className="mt-1 text-sm font-medium text-[var(--text-primary)]">
+                  {daysWithSessions > 0
+                    ? formatDuration(avgMinutesPerActiveDay * 60000)
+                    : "—"}
+                </div>
+              </div>
+
+              <div className="rounded-lg bg-[var(--bg-surface)] px-3 py-2">
+                <div className="text-[0.7rem] text-[var(--text-muted)]">
+                  Avg per session
+                </div>
+                <div className="mt-1 text-sm font-medium text-[var(--text-primary)]">
+                  {sessionsCount > 0
+                    ? formatDuration(avgMinutesPerSession * 60000)
+                    : "—"}
+                </div>
+              </div>
+
+              <div className="rounded-lg bg-[var(--bg-surface)] px-3 py-2">
+                <div className="text-[0.7rem] text-[var(--text-muted)]">
+                  Busiest day
+                </div>
+                <div className="mt-1 text-sm font-medium text-[var(--text-primary)]">
+                  {busiestDayEntry
+                    ? `${busiestDayEntry.label} · ${formatDuration(
+                        busiestDayEntry.totalMinutes * 60000
+                      )}`
+                    : "—"}
+                </div>
+              </div>
+            </div>
+
+            {topProjectEntry && (
+              <div className="mt-3 rounded-lg bg-[var(--bg-surface)] px-3 py-2 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={getProjectColorDotClass(topProjectEntry.color)}
+                    />
+                    <span className="text-[0.7rem] text-[var(--text-muted)]">
+                      Top project
+                    </span>
+                    <span className="text-sm font-medium text-[var(--text-primary)]">
+                      {topProjectEntry.name}
+                    </span>
+                  </div>
+                  <span className="font-mono text-[var(--text-muted)]">
+                    {formatDuration(topProjectEntry.totalMs)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* By project – breakdown (Full + Projects views) */}
         {includeProjects && (
           <div className="mt-6">
             <div className="flex items-baseline justify-between">
@@ -799,19 +879,206 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
           </div>
         )}
 
-        <div className="mt-6">
-          <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-            Markdown summary
-          </h2>
-          <p className="mt-1 text-xs text-[var(--text-muted)]">
-            This is exactly what gets copied when you click &quot;Copy as
-            Markdown&quot; or used as the basis for your exports.
-          </p>
-          <textarea
-            readOnly
-            className="mt-2 h-64 w-full resize-none rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3 text-xs font-mono text-[var(--text-primary)]"
-            value={markdown}
-          />
+        {/* Sessions by day – breakdown (Full + Days views, non-client) */}
+        {includeDays && dayGroups.length > 0 && (
+          <div className="mt-6">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                {sessionsByDayHeading}
+              </h2>
+              <p className="text-[0.7rem] text-[var(--text-muted)]">
+                Each entry is a focus block you logged this week.
+              </p>
+            </div>
+
+            <div className="mt-3 space-y-4 text-sm">
+              {dayGroups.map((day) => {
+                const totalMsForDay = day.sessions.reduce(
+                  (acc, s) => acc + s.durationMs,
+                  0
+                );
+                return (
+                  <div
+                    key={day.key}
+                    className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs font-medium text-[var(--text-primary)]">
+                        {day.label}
+                      </div>
+                      <div className="text-xs font-mono text-[var(--text-muted)]">
+                        {formatDuration(totalMsForDay)} · {day.sessions.length}{" "}
+                        session
+                        {day.sessions.length !== 1 ? "s" : ""}
+                      </div>
+                    </div>
+
+                    <ul className="mt-2 space-y-1.5 text-xs text-[var(--text-primary)]">
+                      {day.sessions.map((s) => {
+                        const timeLabel = s.startTime.toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        });
+                        return (
+                          <li
+                            key={s.id}
+                            className="flex items-start justify-between gap-2"
+                          >
+                            <div className="flex min-w-0 flex-col">
+                              <span className="truncate">
+                                [{s.project.name}] {s.intention || "(no title)"}
+                              </span>
+                              {!isClientMode && s.notes && (
+                                <span className="mt-0.5 text-[0.7rem] text-[var(--text-muted)]">
+                                  Notes: {s.notes}
+                                </span>
+                              )}
+                            </div>
+                            <span className="shrink-0 text-[0.7rem] font-mono text-[var(--text-muted)]">
+                              {timeLabel} · {formatDuration(s.durationMs)}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Summary tone + exports + Markdown */}
+        <div className="mt-8 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-4 py-4">
+          {/* Header + tone */}
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                Summary & exports
+              </h2>
+              <p className="text-xs text-[var(--text-muted)]">
+                Pick the tone, refine your weekly highlight, then copy the
+                Markdown or download a file to share.
+              </p>
+            </div>
+
+            <SummaryModeToggle currentMode={mode} />
+          </div>
+
+          {/* Copy + export buttons */}
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CopySummaryButton text={markdown} />
+
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-[0.7rem] uppercase tracking-wide text-[var(--text-muted)]">
+                Exports
+              </span>
+
+              <Button
+                asChild
+                size="sm"
+                variant="outline"
+                className="h-7 border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-[0.7rem] text-[var(--text-primary)] hover:bg-[var(--bg-surface-soft)]"
+              >
+                <a href={csvHref}>CSV</a>
+              </Button>
+
+              <Button
+                asChild
+                size="sm"
+                variant="outline"
+                className="h-7 border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-[0.7rem] text-[var(--text-primary)] hover:bg-[var(--bg-surface-soft)]"
+              >
+                <a href={jsonHref}>JSON</a>
+              </Button>
+
+              {/* PDF – Pro-gated */}
+              {isPro ? (
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="h-7 border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 text-[0.7rem] text-[var(--text-primary)] hover:bg-[var(--bg-surface-soft)]"
+                >
+                  <a href={pdfHref} className="flex items-center gap-1">
+                    <span>{isClientMode ? "Client PDF" : "PDF"}</span>
+                    <span className="pointer-events-none rounded-full border-yellow-500/10 bg-yellow-500/10 px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide text-yellow-700">
+                      Pro
+                    </span>
+                  </a>
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled
+                  className="h-7 cursor-not-allowed border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-2 text-[0.7rem] text-[var(--text-muted)]"
+                >
+                  <span className="flex items-center gap-1">
+                    <span>{isClientMode ? "Client PDF" : "PDF"}</span>
+                    <span className="pointer-events-none rounded-full border-yellow-500/10 bg-yellow-500/10 px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide text-yellow-700">
+                      Pro
+                    </span>
+                  </span>
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Weekly highlight – after tone/exports, before preview */}
+          <div className="mt-6 border-t border-[var(--border-subtle)] pt-4">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+              Weekly highlight
+            </h3>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              This short blurb appears at the top of your Markdown summary and
+              in the client PDF. Updating it here will change the preview below.
+            </p>
+
+            <form
+              action={saveWeeklyHighlight}
+              className="mt-2 space-y-2 text-sm"
+            >
+              <textarea
+                name="highlight"
+                defaultValue={highlightText}
+                placeholder="Shipped v1 of the billing page, closed out tech debt on auth, and unblocked the team on the deployment pipeline."
+                className="h-24 w-full resize-none rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3 text-xs font-normal text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+              />
+              <input
+                type="hidden"
+                name="weekStart"
+                value={start.toISOString()}
+              />
+              <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+                <span>Leave empty to remove the highlight for this week.</span>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="bg-[var(--accent-solid)] text-xs font-medium text-[var(--text-on-accent)] hover:brightness-110"
+                >
+                  Save highlight
+                </Button>
+              </div>
+            </form>
+          </div>
+
+          {/* Markdown preview */}
+          <div className="mt-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[0.7rem] uppercase tracking-wide text-[var(--text-muted)]">
+                Markdown preview
+              </span>
+              <span className="text-[0.65rem] text-[var(--text-muted)]">
+                Tone, highlight, filters, and week range all affect this output.
+              </span>
+            </div>
+            <textarea
+              readOnly
+              className="mt-2 h-64 w-full resize-none rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3 text-xs font-mono text-[var(--text-primary)]"
+              value={markdown}
+            />
+          </div>
         </div>
       </CardContent>
     </Card>

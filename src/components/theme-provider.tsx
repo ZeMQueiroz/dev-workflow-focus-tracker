@@ -5,40 +5,94 @@ import {
   useContext,
   useState,
   useEffect,
-  ReactNode,
+  type ReactNode,
 } from "react";
+import type { ThemeId } from "@/lib/themes";
 
 const THEME_STORAGE_KEY = "weekline:theme";
-const DEFAULT_THEME = "dark";
+const MOTION_BG_STORAGE_KEY = "weekline:motion-bg";
+const DEFAULT_THEME: ThemeId = "slate";
 
-type Theme = "dark" | "light";
+export type MotionBackground =
+  | "none"
+  | "soft"
+  | "aurora"
+  | "dusk"
+  | "ocean"
+  | "nebula";
 
 type ThemeContextValue = {
-  theme: Theme;
-  setTheme: (t: Theme) => void;
+  theme: ThemeId;
+  setTheme: (t: ThemeId) => void;
+  motionBackground: MotionBackground;
+  setMotionBackground: (m: MotionBackground) => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window === "undefined") return DEFAULT_THEME;
+  // Static defaults so SSR & first client render match
+  const [theme, setThemeState] = useState<ThemeId>(DEFAULT_THEME);
+  const [motionBackground, setMotionBackgroundState] =
+    useState<MotionBackground>("none");
 
-    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-    if (stored === "dark" || stored === "light") {
-      return stored;
-    }
-    return DEFAULT_THEME;
-  });
-
-  // keep DOM + localStorage in sync with state
+  // After mount, hydrate from localStorage (client only)
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-  }, [theme]);
+    if (typeof window === "undefined") return;
+
+    try {
+      const storedTheme = window.localStorage.getItem(
+        THEME_STORAGE_KEY
+      ) as ThemeId | null;
+
+      if (storedTheme) {
+        setThemeState(storedTheme);
+      }
+
+      const storedMotion = window.localStorage.getItem(
+        MOTION_BG_STORAGE_KEY
+      ) as MotionBackground | null;
+
+      if (
+        storedMotion === "none" ||
+        storedMotion === "soft" ||
+        storedMotion === "aurora" ||
+        storedMotion === "dusk" ||
+        storedMotion === "ocean" ||
+        storedMotion === "nebula"
+      ) {
+        setMotionBackgroundState(storedMotion);
+      }
+    } catch {
+      // ignore storage failures
+    }
+  }, []);
+
+  // Reflect theme + motion background to <html> dataset + persist
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const root = document.documentElement;
+
+    root.dataset.theme = theme;
+    root.dataset.motionBg = motionBackground;
+
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+      window.localStorage.setItem(MOTION_BG_STORAGE_KEY, motionBackground);
+    } catch {
+      // ignore
+    }
+  }, [theme, motionBackground]);
+
+  const setTheme = (t: ThemeId) => setThemeState(t);
+  const setMotionBackground = (m: MotionBackground) =>
+    setMotionBackgroundState(m);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
+    <ThemeContext.Provider
+      value={{ theme, setTheme, motionBackground, setMotionBackground }}
+    >
       {children}
     </ThemeContext.Provider>
   );

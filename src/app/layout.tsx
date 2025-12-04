@@ -5,6 +5,10 @@ import { MainNav } from "@/components/main-nav";
 import { AuthProvider } from "@/components/auth-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppFooter } from "@/components/app-footer";
+import { MiniTimer } from "@/components/mini-timer";
+import { ActiveSessionProvider } from "@/components/active-session-context";
+import { ScrollToTop } from "@/components/scroll-to-top";
+
 import { Inter, JetBrains_Mono } from "next/font/google";
 
 const geistSans = Inter({
@@ -33,13 +37,29 @@ const RootLayout = ({ children }: RootLayoutProps) => {
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ThemeProvider>
-          <AuthProvider>
-            <MainNav />
-            <main className="mx-auto flex min-h-[calc(100vh-3.5rem)] max-w-5xl flex-col gap-6 px-4 py-6 md:px-8">
-              {children}
-            </main>
-            <AppFooter />
-          </AuthProvider>
+          {/* reset scroll on route change */}
+          <ScrollToTop />
+
+          <ActiveSessionProvider>
+            <AuthProvider>
+              <MainNav />
+
+              {/* main scrollable area */}
+              <main
+                data-scroll-root
+                className="min-h-[calc(100vh-3.5rem)] px-4 py-6 md:px-8 lg:py-10"
+              >
+                <div className="mx-auto flex max-w-6xl flex-col gap-8">
+                  {children}
+                </div>
+              </main>
+
+              <AppFooter />
+
+              {/* Floating mini timer, visible across routes */}
+              <MiniTimer />
+            </AuthProvider>
+          </ActiveSessionProvider>
         </ThemeProvider>
       </body>
     </html>

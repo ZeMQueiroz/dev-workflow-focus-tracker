@@ -4,6 +4,7 @@ import { useState } from "react";
 import { formatDuration } from "@/lib/time";
 import { deleteSession, updateSession } from "@/app/actions/session-actions";
 import { getProjectColorDotClass } from "@/lib/project-colors";
+import { ChevronDown } from "lucide-react";
 
 type SessionItem = {
   id: number;
@@ -41,6 +42,7 @@ const SessionList = ({ sessions, totalMs }: SessionListProps) => {
   const [editIntention, setEditIntention] = useState("");
   const [editDurationMinutes, setEditDurationMinutes] = useState<number>(25);
   const [editNotes, setEditNotes] = useState("");
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const startEditing = (session: SessionItem) => {
     setEditingId(session.id);
@@ -67,6 +69,26 @@ const SessionList = ({ sessions, totalMs }: SessionListProps) => {
 
   return (
     <div className="mt-4 border-t border-[var(--border-subtle)] pt-4 text-sm text-[var(--text-muted)]">
+      {/* Section header + collapse toggle (mobile) */}
+      <div className="mb-2 flex items-center justify-between text-xs">
+        <span className="font-medium uppercase tracking-wide text-[var(--text-muted)]">
+          Timeline
+        </span>
+        <button
+          type="button"
+          onClick={() => setIsCollapsed((prev) => !prev)}
+          className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[0.7rem] text-[var(--text-muted)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] md:hidden"
+          aria-expanded={!isCollapsed}
+        >
+          {isCollapsed ? "Show" : "Hide"}
+          <ChevronDown
+            className={`h-3 w-3 transition-transform ${
+              isCollapsed ? "-rotate-90" : "rotate-0"
+            }`}
+          />
+        </button>
+      </div>
+
       <div className="mb-3 flex items-baseline justify-between text-xs text-[var(--text-muted)]">
         <span>Total today</span>
         <span className="font-mono text-[var(--text-primary)]">
@@ -74,7 +96,7 @@ const SessionList = ({ sessions, totalMs }: SessionListProps) => {
         </span>
       </div>
 
-      <ul className="space-y-3">
+      <ul className={`space-y-3 ${isCollapsed ? "hidden md:block" : ""}`}>
         {sessions.map((session) => {
           const isEditing = editingId === session.id;
 

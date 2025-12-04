@@ -76,7 +76,7 @@ export const SummaryCharts = ({ perDay, perProject }: SummaryChartsProps) => {
           </div>
         </div>
 
-        <div className="h-44 w-full pt-2">
+        <div className="h-44 w-full pt-2 sm:h-52">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={perDay}>
               <CartesianGrid
@@ -135,8 +135,8 @@ export const SummaryCharts = ({ perDay, perProject }: SummaryChartsProps) => {
           </div>
         </div>
 
-        <div className="flex items-center gap-4 pt-2">
-          <div className="h-40 w-40">
+        <div className="flex flex-col items-center gap-4 pt-2 sm:flex-row sm:items-center">
+          <div className="h-40 w-40 sm:h-44 sm:w-44">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <ChartTooltip
@@ -165,7 +165,7 @@ export const SummaryCharts = ({ perDay, perProject }: SummaryChartsProps) => {
             </ResponsiveContainer>
           </div>
 
-          <div className="flex flex-1 flex-col gap-1 text-xs text-[var(--text-muted)]">
+          <div className="flex w-full flex-1 flex-col gap-1 text-xs text-[var(--text-muted)]">
             {perProject
               .slice()
               .sort((a, b) => b.totalMinutes - a.totalMinutes)
@@ -174,7 +174,7 @@ export const SummaryCharts = ({ perDay, perProject }: SummaryChartsProps) => {
                   key={p.name}
                   className="flex items-center justify-between gap-2"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
                     <span
                       className="h-2.5 w-2.5 rounded-full"
                       style={{
@@ -186,7 +186,7 @@ export const SummaryCharts = ({ perDay, perProject }: SummaryChartsProps) => {
                       {p.name}
                     </span>
                   </div>
-                  <span className="font-mono">
+                  <span className="shrink-0 font-mono">
                     {formatMinutesLabel(p.totalMinutes)}
                   </span>
                 </div>
@@ -198,7 +198,4 @@ export const SummaryCharts = ({ perDay, perProject }: SummaryChartsProps) => {
   );
 };
 
-// Optional default export so both of these work:
-//   import { SummaryCharts } from "@/components/summary-charts";
-//   import SummaryCharts from "@/components/summary-charts";
 export default SummaryCharts;

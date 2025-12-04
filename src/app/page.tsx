@@ -1,4 +1,3 @@
-// app/page.tsx
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getTodayRange, formatDuration } from "@/lib/time";
@@ -284,27 +283,43 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
 
   const { start, end } = getTodayRange();
 
-  const [projects, sessions] = await Promise.all([
-    prisma.project.findMany({
-      where: { ownerEmail, isArchived: false },
-      orderBy: { createdAt: "asc" },
-    }),
-    prisma.session.findMany({
-      where: {
-        ownerEmail,
-        startTime: {
-          gte: start,
-          lt: end,
+  // 🛡️ DB calls wrapped in try/catch + fallback so Prisma timeouts
+  // don't crash the whole page.
+  let projects: Awaited<ReturnType<typeof prisma.project.findMany>> = [];
+  let sessions: Awaited<ReturnType<typeof prisma.session.findMany>> = [];
+
+  try {
+    const [projectsResult, sessionsResult] = await Promise.all([
+      prisma.project.findMany({
+        where: { ownerEmail, isArchived: false },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.session.findMany({
+        where: {
+          ownerEmail,
+          startTime: {
+            gte: start,
+            lt: end,
+          },
         },
-      },
-      include: {
-        project: true,
-      },
-      orderBy: {
-        startTime: "asc", // oldest -> newest for a proper timeline
-      },
-    }),
-  ]);
+        include: {
+          project: true,
+        },
+        orderBy: {
+          startTime: "asc", // oldest -> newest for a proper timeline
+        },
+      }),
+    ]);
+
+    projects = projectsResult;
+    sessions = sessionsResult;
+  } catch (err) {
+    console.error(
+      "TodayPage: failed to load projects/sessions, falling back to empty lists.",
+      err
+    );
+    // leave projects/sessions as empty arrays so UI still renders
+  }
 
   const totalMs = sessions.reduce((acc, s) => acc + s.durationMs, 0);
   const sessionsCount = sessions.length;
@@ -359,58 +374,77 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
   }));
 
   return (
-    <div className="flex w-full flex-col gap-6 lg:flex-row">
-      {/* Left: log new session (timer-first) */}
-      <NewSessionForm projects={projectSummaries} totalTodayMs={totalMs} />
-
-      {/* Right: today's overview + log */}
-      <Card className="flex-1">
-        <CardHeader>
-          <CardTitle className="text-lg text-[var(--text-primary)]">
-            Today&apos;s log
-          </CardTitle>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">
-            {todayLabel}. Start a focus timer on the left — every session you
-            save shows up here as a timeline of your day.
+    <div className="w-full space-y-4">
+      {/* Light Today header */}
+      <header className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
+            Today
           </p>
-        </CardHeader>
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-3xl">
+            Let&apos;s track today&apos;s focus.
+          </h1>
+        </div>
+        <p className="text-sm text-[var(--text-muted)]">{todayLabel}</p>
+      </header>
 
-        <CardContent>
-          {/* Today at a glance */}
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3">
-              <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-                <span>Total time</span>
-                <Timer className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-              </div>
-              <div className="mt-1 text-2xl font-mono text-[var(--text-primary)]">
-                {formatDuration(totalMs)}
-              </div>
-            </div>
-            <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3">
-              <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-                <span>Sessions</span>
-                <ListChecks className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-              </div>
-              <div className="mt-1 text-2xl font-mono text-[var(--text-primary)]">
-                {sessionsCount}
-              </div>
-            </div>
-            <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3">
-              <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-                <span>Primary project</span>
-                <FolderKanban className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-              </div>
-              <div className="mt-1 truncate text-sm font-medium text-[var(--text-primary)]">
-                {primaryProjectName}
-              </div>
-            </div>
-          </div>
+      <div className="flex w-full flex-col gap-6 lg:flex-row">
+        {/* Left: new session (timer-first) */}
+        <NewSessionForm projects={projectSummaries} totalTodayMs={totalMs} />
 
-          {/* Timeline with inline edit/delete */}
-          <SessionList sessions={sessionItems} totalMs={totalMs} />
-        </CardContent>
-      </Card>
+        {/* Right: today overview + log */}
+        <Card className="flex-1">
+          <CardHeader className="border-b border-[var(--border-subtle)] pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-sm font-semibold text-[var(--text-primary)]">
+                Today&apos;s log
+              </CardTitle>
+              <span className="text-xs text-[var(--text-muted)]">
+                {sessionsCount} session{sessionsCount === 1 ? "" : "s"}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              A simple timeline of the focus blocks you saved today.
+            </p>
+          </CardHeader>
+
+          <CardContent className="pt-4">
+            {/* Today at a glance */}
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3">
+                <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+                  <span>Total time</span>
+                  <Timer className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+                </div>
+                <div className="mt-1 text-2xl font-mono text-[var(--text-primary)]">
+                  {formatDuration(totalMs)}
+                </div>
+              </div>
+              <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3">
+                <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+                  <span>Sessions</span>
+                  <ListChecks className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+                </div>
+                <div className="mt-1 text-2xl font-mono text-[var(--text-primary)]">
+                  {sessionsCount}
+                </div>
+              </div>
+              <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3">
+                <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+                  <span>Primary project</span>
+                  <FolderKanban className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+                </div>
+                <div className="mt-1 truncate text-sm font-medium text-[var(--text-primary)]">
+                  {primaryProjectName}
+                </div>
+              </div>
+            </div>
+
+            {/* Timeline with inline edit/delete */}
+            <SessionList sessions={sessionItems} totalMs={totalMs} />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };

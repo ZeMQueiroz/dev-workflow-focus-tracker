@@ -11,8 +11,14 @@
 
   /* Layout tokens – themed via [data-theme] */
   --bg-app: #020617; /* app background */
-  --bg-surface: #020617; /* main cards / panels */
-  --bg-surface-soft: #020617; /* softer / inset surfaces */
+
+  /* Base surfaces (opaque) – per-theme overrides set these */
+  --bg-surface-base: #020617; /* main cards / panels */
+  --bg-surface-soft-base: #020617; /* softer / inset surfaces */
+
+  /* Effective surfaces (can become translucent with motion-bg) */
+  --bg-surface: var(--bg-surface-base);
+  --bg-surface-soft: var(--bg-surface-soft-base);
 
   --border-subtle: #1f2937; /* slate-800 */
   --border-strong: #334155; /* slate-700 */
@@ -24,6 +30,10 @@
   --text-on-accent: #020617;
 
   --radius: 0.625rem;
+
+  /* Surface opacity multipliers (used when motion background is on) */
+  --surface-opacity-strong: 0.88;
+  --surface-opacity-soft: 0.78;
 
   /* shadcn / design tokens (light defaults) */
   --card: oklch(1 0 0);
@@ -116,8 +126,12 @@
   --accent-soft: rgba(148, 163, 184, 0.25);
 
   --bg-app: #020617; /* slate-950 */
-  --bg-surface: #020617;
-  --bg-surface-soft: #020617;
+
+  --bg-surface-base: #020617;
+  --bg-surface-soft-base: #020617;
+
+  --bg-surface: var(--bg-surface-base);
+  --bg-surface-soft: var(--bg-surface-soft-base);
 
   --border-subtle: #1f2937; /* slate-800 */
   --border-strong: #334155; /* slate-700 */
@@ -134,8 +148,12 @@
   --accent-soft: rgba(136, 192, 208, 0.2);
 
   --bg-app: #020713;
-  --bg-surface: #050b1f;
-  --bg-surface-soft: #071120;
+
+  --bg-surface-base: #050b1f;
+  --bg-surface-soft-base: #071120;
+
+  --bg-surface: var(--bg-surface-base);
+  --bg-surface-soft: var(--bg-surface-soft-base);
 
   --border-subtle: #1b2735;
   --border-strong: #273549;
@@ -152,8 +170,12 @@
   --accent-soft: rgba(249, 115, 22, 0.2);
 
   --bg-app: #080716;
-  --bg-surface: #100a24;
-  --bg-surface-soft: #120b2a;
+
+  --bg-surface-base: #100a24;
+  --bg-surface-soft-base: #120b2a;
+
+  --bg-surface: var(--bg-surface-base);
+  --bg-surface-soft: var(--bg-surface-soft-base);
 
   --border-subtle: #2a243d;
   --border-strong: #3c3453;
@@ -170,8 +192,12 @@
   --accent-soft: rgba(245, 158, 11, 0.2);
 
   --bg-app: #00141c;
-  --bg-surface: #001f27;
-  --bg-surface-soft: #002b36;
+
+  --bg-surface-base: #001f27;
+  --bg-surface-soft-base: #002b36;
+
+  --bg-surface: var(--bg-surface-base);
+  --bg-surface-soft: var(--bg-surface-soft-base);
 
   --border-subtle: #073642;
   --border-strong: #0b4350;
@@ -188,8 +214,12 @@
   --accent-soft: rgba(34, 197, 94, 0.2);
 
   --bg-app: #020712;
-  --bg-surface: #041017;
-  --bg-surface-soft: #05151e;
+
+  --bg-surface-base: #041017;
+  --bg-surface-soft-base: #05151e;
+
+  --bg-surface: var(--bg-surface-base);
+  --bg-surface-soft: var(--bg-surface-soft-base);
 
   --border-subtle: #102a22;
   --border-strong: #1c3f2f;
@@ -206,8 +236,12 @@
   --accent-soft: rgba(225, 29, 72, 0.2);
 
   --bg-app: #080414;
-  --bg-surface: #12061f;
-  --bg-surface-soft: #170828;
+
+  --bg-surface-base: #12061f;
+  --bg-surface-soft-base: #170828;
+
+  --bg-surface: var(--bg-surface-base);
+  --bg-surface-soft: var(--bg-surface-soft-base);
 
   --border-subtle: #311336;
   --border-strong: #4a1f4d;
@@ -224,8 +258,12 @@
   --accent-soft: rgba(37, 99, 235, 0.12);
 
   --bg-app: #f3f4f6;
-  --bg-surface: #ffffff;
-  --bg-surface-soft: #f9fafb;
+
+  --bg-surface-base: #ffffff;
+  --bg-surface-soft-base: #f9fafb;
+
+  --bg-surface: var(--bg-surface-base);
+  --bg-surface-soft: var(--bg-surface-soft-base);
 
   --border-subtle: #e5e7eb;
   --border-strong: #d1d5db;
@@ -242,8 +280,12 @@
   --accent-soft: rgba(14, 165, 233, 0.12);
 
   --bg-app: #eff6ff;
-  --bg-surface: #ffffff;
-  --bg-surface-soft: #e0f2fe;
+
+  --bg-surface-base: #ffffff;
+  --bg-surface-soft-base: #e0f2fe;
+
+  --bg-surface: var(--bg-surface-base);
+  --bg-surface-soft: var(--bg-surface-soft-base);
 
   --border-subtle: #dbeafe;
   --border-strong: #bfdbfe;
@@ -260,8 +302,12 @@
   --accent-soft: rgba(245, 158, 11, 0.14);
 
   --bg-app: #fffbeb;
-  --bg-surface: #ffffff;
-  --bg-surface-soft: #fef3c7;
+
+  --bg-surface-base: #ffffff;
+  --bg-surface-soft-base: #fef3c7;
+
+  --bg-surface: var(--bg-surface-base);
+  --bg-surface-soft: var(--bg-surface-soft-base);
 
   --border-subtle: #fde68a;
   --border-strong: #fbbf24;
@@ -277,8 +323,13 @@
   --accent-soft: rgba(79, 70, 229, 0.16);
 
   --bg-app: #020617;
-  --bg-surface: #020617;
-  --bg-surface-soft: #020617;
+
+  /* Defaults – ThemeSelector will override these vars directly */
+  --bg-surface-base: #020617;
+  --bg-surface-soft-base: #020617;
+
+  --bg-surface: var(--bg-surface-base);
+  --bg-surface-soft: var(--bg-surface-soft-base);
 
   --border-subtle: #1f2937;
   --border-strong: #334155;
@@ -407,4 +458,217 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Motion background: make surfaces slightly glassy when enabled      */
+/* ------------------------------------------------------------------ */
+
+/* When NO motion background: keep surfaces fully opaque */
+[data-motion-bg="none"] {
+  --bg-surface: var(--bg-surface-base);
+  --bg-surface-soft: var(--bg-surface-soft-base);
+}
+
+/* Any motion background ≠ "none" => soften surfaces & borders */
+:root[data-motion-bg]:not([data-motion-bg="none"]) {
+  --bg-surface: color-mix(
+    in srgb,
+    var(--bg-surface-base) calc(var(--surface-opacity-strong) * 100%),
+    transparent
+  );
+  --bg-surface-soft: color-mix(
+    in srgb,
+    var(--bg-surface-soft-base) calc(var(--surface-opacity-soft) * 100%),
+    transparent
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Motion background overlay (driven by [data-motion-bg])             */
+/* ------------------------------------------------------------------ */
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  background: var(--bg-app);
+  transition: opacity 280ms ease-out, transform 1200ms ease-in-out;
+  transform: translate3d(0, 0, 0);
+}
+
+/* No motion background */
+[data-motion-bg="none"] body::before {
+  opacity: 0;
+  animation: none;
+}
+
+/* ------------------------- Soft gradient -------------------------- */
+
+@keyframes motion-soft-orbit {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1.01);
+  }
+  50% {
+    transform: translate3d(-1.8%, -1.4%, 0) scale(1.035);
+  }
+  100% {
+    transform: translate3d(1.5%, 1.2%, 0) scale(1.03);
+  }
+}
+
+[data-motion-bg="soft"] body::before {
+  opacity: 0.9;
+  background: radial-gradient(
+      circle at 0% 0%,
+      rgba(34, 197, 94, 0.35),
+      transparent 60%
+    ),
+    radial-gradient(
+      circle at 100% 100%,
+      rgba(14, 165, 233, 0.32),
+      transparent 60%
+    ),
+    radial-gradient(
+      circle at 0% 100%,
+      rgba(244, 114, 182, 0.28),
+      transparent 60%
+    ),
+    var(--bg-app);
+  animation: motion-soft-orbit 26s ease-in-out infinite alternate;
+}
+
+/* -------------------------- Aurora gradient ----------------------- */
+
+@keyframes motion-aurora {
+  0% {
+    transform: translate3d(-3%, -2%, 0) scale(1.04);
+  }
+  50% {
+    transform: translate3d(3%, 2%, 0) scale(1.07);
+  }
+  100% {
+    transform: translate3d(-2%, 0, 0) scale(1.05);
+  }
+}
+
+[data-motion-bg="aurora"] body::before {
+  opacity: 0.95;
+  background: radial-gradient(
+      circle at 10% 0%,
+      rgba(56, 189, 248, 0.38),
+      transparent 60%
+    ),
+    radial-gradient(
+      circle at 90% 100%,
+      rgba(168, 85, 247, 0.34),
+      transparent 60%
+    ),
+    radial-gradient(circle at 0% 100%, rgba(249, 115, 22, 0.3), transparent 60%),
+    var(--bg-app);
+  animation: motion-aurora 32s ease-in-out infinite alternate;
+}
+
+/* -------------------------- Dusk horizon -------------------------- */
+
+@keyframes motion-dusk {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1.04);
+  }
+  50% {
+    transform: translate3d(-2%, 3%, 0) scale(1.07);
+  }
+  100% {
+    transform: translate3d(2%, -2%, 0) scale(1.05);
+  }
+}
+
+[data-motion-bg="dusk"] body::before {
+  opacity: 0.95;
+  background: radial-gradient(
+      circle at 0% 0%,
+      rgba(244, 114, 182, 0.42),
+      transparent 60%
+    ),
+    radial-gradient(
+      circle at 100% 0%,
+      rgba(251, 191, 36, 0.34),
+      transparent 60%
+    ),
+    radial-gradient(
+      circle at 50% 100%,
+      rgba(248, 113, 113, 0.32),
+      transparent 65%
+    ),
+    var(--bg-app);
+  animation: motion-dusk 34s ease-in-out infinite alternate;
+}
+
+/* -------------------------- Deep ocean ---------------------------- */
+
+@keyframes motion-ocean {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1.03);
+  }
+  50% {
+    transform: translate3d(3%, -3%, 0) scale(1.07);
+  }
+  100% {
+    transform: translate3d(-2%, 2%, 0) scale(1.04);
+  }
+}
+
+[data-motion-bg="ocean"] body::before {
+  opacity: 0.9;
+  background: radial-gradient(
+      circle at 0% 0%,
+      rgba(59, 130, 246, 0.4),
+      transparent 60%
+    ),
+    radial-gradient(
+      circle at 100% 100%,
+      rgba(45, 212, 191, 0.32),
+      transparent 60%
+    ),
+    radial-gradient(
+      circle at 0% 100%,
+      rgba(129, 140, 248, 0.3),
+      transparent 60%
+    ),
+    var(--bg-app);
+  animation: motion-ocean 38s ease-in-out infinite alternate;
+}
+
+/* -------------------------- Midnight nebula ------------------------ */
+
+@keyframes motion-nebula {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1.05);
+  }
+  50% {
+    transform: translate3d(-3%, 2%, 0) scale(1.1);
+  }
+  100% {
+    transform: translate3d(2%, -2%, 0) scale(1.06);
+  }
+}
+
+[data-motion-bg="nebula"] body::before {
+  opacity: 0.95;
+  background: radial-gradient(
+      circle at 10% 0%,
+      rgba(192, 132, 252, 0.38),
+      transparent 60%
+    ),
+    radial-gradient(
+      circle at 90% 100%,
+      rgba(248, 113, 113, 0.34),
+      transparent 60%
+    ),
+    radial-gradient(circle at 0% 100%, rgba(139, 92, 246, 0.3), transparent 60%),
+    var(--bg-app);
+  animation: motion-nebula fortys ease-in-out infinite alternate;
 }

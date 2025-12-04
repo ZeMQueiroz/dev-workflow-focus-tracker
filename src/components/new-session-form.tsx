@@ -7,6 +7,7 @@ import { useFormStatus } from "react-dom";
 import { createSession } from "@/app/actions/session-actions";
 import { formatDuration } from "@/lib/time";
 import { getProjectColorDotClass } from "@/lib/project-colors";
+import { useActiveSession } from "@/components/active-session-context";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select";
+import { Play, Pause, RotateCcw } from "lucide-react";
 
 type ProjectSummary = {
   id: number;
@@ -30,20 +32,6 @@ type ProjectSummary = {
 type NewSessionFormProps = {
   projects: ProjectSummary[];
   totalTodayMs: number;
-};
-
-const SubmitButton = () => {
-  const { pending } = useFormStatus();
-
-  return (
-    <Button
-      type="submit"
-      className="rounded-md bg-[var(--accent-solid)] px-4 py-2 text-sm font-medium text-[var(--text-on-accent)] hover:brightness-95 disabled:opacity-50"
-      disabled={pending}
-    >
-      {pending ? "Saving..." : "Save session"}
-    </Button>
-  );
 };
 
 const formatElapsed = (elapsedMs: number) => {
@@ -58,6 +46,23 @@ const formatElapsed = (elapsedMs: number) => {
 };
 
 const LAST_PROJECT_KEY = "weekline:last-project";
+const POMODORO_MINUTES = 25;
+
+type SessionMode = "manual" | "timer" | "pomodoro";
+
+const SubmitButton = ({ disabled }: { disabled: boolean }) => {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button
+      type="submit"
+      className="rounded-md bg-[var(--accent-solid)] px-4 py-2 text-sm font-medium text-[var(--text-on-accent)] hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+      disabled={pending || disabled}
+    >
+      {pending ? "Saving..." : "Save session"}
+    </Button>
+  );
+};
 
 const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
   // ---- Project selection / last used ----
@@ -86,65 +91,117 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
     window.localStorage.setItem(LAST_PROJECT_KEY, projectId);
   }, [projectId]);
 
+  const {
+    state: active,
+    startSession,
+    pauseSession,
+    resumeSession,
+    resetSession,
+  } = useActiveSession();
+
   const [intention, setIntention] = useState("");
   const [notes, setNotes] = useState("");
 
-  // Manual duration (minutes)
+  // Prefill intention from active session (mini timer) if empty
+  useEffect(() => {
+    if (!intention && active.intention) {
+      setIntention(active.intention);
+    }
+  }, [active.intention, intention]);
+
+  // Manual duration (minutes) – default 25 so it already feels Pomodoro-ish
   const [manualDuration, setManualDuration] = useState("25");
 
-  // Timer state — DEFAULT: timer mode ON
-  const [useTimer, setUseTimer] = useState(true);
-  const [isRunning, setIsRunning] = useState(false);
-  const [elapsedMs, setElapsedMs] = useState(0);
-  const [startTimestamp, setStartTimestamp] = useState<number | null>(null);
+  // Session mode: manual log, free timer, or 25m Pomodoro
+  const [sessionMode, setSessionMode] = useState<SessionMode>("timer");
 
-  // Timer tick effect
-  useEffect(() => {
-    if (!isRunning || startTimestamp == null) return;
+  const disableForm = !hasProjects;
+  const hasIntention = intention.trim().length > 0;
 
-    const id = window.setInterval(() => {
-      setElapsedMs(Date.now() - startTimestamp);
-    }, 1000);
+  const isPomodoro = sessionMode === "pomodoro";
+  const useTimer = sessionMode === "timer" || sessionMode === "pomodoro";
 
-    return () => window.clearInterval(id);
-  }, [isRunning, startTimestamp]);
+  const hasElapsed = active.elapsedMs > 0;
 
-  const handleModeChange = (nextMode: "timer" | "manual") => {
-    const nextUseTimer = nextMode === "timer";
-    setUseTimer(nextUseTimer);
+  // Effective duration that will be sent to the server action
+  let effectiveDurationMinutes: number;
 
-    if (!nextUseTimer) {
-      // leaving timer mode → reset timer state
-      setIsRunning(false);
-      setElapsedMs(0);
-      setStartTimestamp(null);
+  if (sessionMode === "manual") {
+    effectiveDurationMinutes = manualDuration ? Number(manualDuration) || 0 : 0;
+  } else if (sessionMode === "timer") {
+    effectiveDurationMinutes = hasElapsed
+      ? Math.max(1, Math.round(active.elapsedMs / 60000))
+      : 0;
+  } else {
+    // Pomodoro mode: target 25m, clamp to 25 when saving
+    if (!hasElapsed) {
+      effectiveDurationMinutes = POMODORO_MINUTES;
+    } else {
+      const elapsedMinutes = Math.max(1, Math.round(active.elapsedMs / 60000));
+      effectiveDurationMinutes = Math.min(POMODORO_MINUTES, elapsedMinutes);
+    }
+  }
+
+  const canSubmit =
+    !disableForm && hasIntention && effectiveDurationMinutes > 0;
+
+  const isRunning = useTimer && active.isRunning;
+  const isIdle = !isRunning && active.elapsedMs === 0;
+  const isPaused = !isRunning && active.elapsedMs > 0;
+
+  const handleModeChange = (nextMode: SessionMode) => {
+    setSessionMode(nextMode);
+
+    // Leaving any timer mode → clear active timer + mini pill
+    if (nextMode === "manual") {
+      resetSession();
+    }
+
+    // Make sure manual duration is aligned with Pomodoro preset when you pick it
+    if (nextMode === "pomodoro") {
+      setManualDuration(String(POMODORO_MINUTES));
     }
   };
 
-  const handleStartTimer = () => {
-    if (!hasProjects) return;
-    setStartTimestamp(Date.now());
-    setElapsedMs(0);
-    setIsRunning(true);
-  };
+  // unified play/pause handler (start, pause, resume)
+  const handlePlayPauseTimer = () => {
+    if (!useTimer || disableForm) return;
 
-  const handleStopTimer = () => {
-    setIsRunning(false);
+    // START: only allowed if there is no active elapsed time yet
+    if (!active.isRunning && active.elapsedMs === 0) {
+      if (!hasIntention) return; // require focus line only when starting
+
+      const project = projects.find((p) => String(p.id) === projectId);
+      const projectName = project?.name ?? "Untitled project";
+
+      startSession({
+        projectName,
+        intention: intention.trim() || "Focused work",
+      });
+      return;
+    }
+
+    // Existing session → toggle pause / resume
+    if (active.isRunning) {
+      pauseSession();
+    } else {
+      resumeSession();
+    }
   };
 
   const handleResetTimer = () => {
-    setIsRunning(false);
-    setElapsedMs(0);
-    setStartTimestamp(null);
+    if (!useTimer) return;
+    resetSession();
   };
 
-  const effectiveDurationMinutes = useTimer
-    ? Math.max(0, Math.round(elapsedMs / 60000))
-    : manualDuration
-    ? Number(manualDuration) || 0
-    : 0;
+  // ---- Timer display (count up vs. Pomodoro count down) ----
+  const rawElapsedMs = useTimer ? active.elapsedMs : 0;
+  const pomodoroTargetMs = POMODORO_MINUTES * 60 * 1000;
 
-  const disableForm = !hasProjects;
+  const displayMs =
+    isPomodoro && pomodoroTargetMs > 0
+      ? Math.max(0, pomodoroTargetMs - rawElapsedMs)
+      : rawElapsedMs;
 
   return (
     <Card className="flex-1">
@@ -178,7 +235,7 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
               3
             </span>
             <span className="whitespace-nowrap font-medium text-[var(--text-primary)]">
-              Start timer &amp; save
+              Start &amp; save
             </span>
           </div>
         </div>
@@ -236,7 +293,7 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
                 <Button
                   asChild
                   size="sm"
-                  className="mt-1 bg-[var(--accent-solid)] text-[0.7rem] font-medium text-slate-900 hover:brightness-95 sm:mt-0"
+                  className="mt-1 bg-[var(--accent-solid)] text-[0.7rem]font-medium text-slate-900 hover:brightness-95 sm:mt-0"
                 >
                   <Link href="/projects">Create project →</Link>
                 </Button>
@@ -259,47 +316,53 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
             />
           </div>
 
-          {/* Duration: manual vs timer */}
+          {/* Mode & duration */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <Label className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
-                Session duration
+                Session mode &amp; duration
               </Label>
-              <div className="flex items-center gap-2 text-[0.7rem] text-[var(--text-muted)]">
-                <div className="flex gap-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={useTimer ? "ghost" : "secondary"}
-                    className={[
-                      "rounded-xl px-2 py-1 text-[0.7rem]",
-                      !useTimer
-                        ? "bg-[var(--accent-solid)] text-[var(--text-on-accent)] shadow-sm hover:bg-[var(--accent-solid)] hover:brightness-75"
-                        : "text-[var(--text-muted)] hover:text-[var(--text-primary)]",
-                    ].join(" ")}
-                    onClick={() => handleModeChange("manual")}
-                  >
-                    Manual
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={useTimer ? "secondary" : "ghost"}
-                    className={[
-                      "rounded-xl px-2 py-1 text-[0.7rem]",
-                      useTimer
-                        ? "bg-[var(--accent-solid)] text-[var(--text-on-accent)] shadow-sm hover:bg-[var(--accent-solid)] hover:brightness-75"
-                        : "text-[var(--text-muted)] hover:text-[var(--text-primary)]",
-                    ].join(" ")}
-                    onClick={() => handleModeChange("timer")}
-                  >
-                    Timer
-                  </Button>
-                </div>
+              <div className="inline-flex rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-0.5 text-[0.7rem]">
+                <button
+                  type="button"
+                  onClick={() => handleModeChange("timer")}
+                  className={[
+                    "rounded-full px-2.5 py-1",
+                    sessionMode === "timer"
+                      ? "bg-[var(--accent-solid)] text-[var(--text-on-accent)] shadow-sm"
+                      : "text-[var(--text-muted)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]",
+                  ].join(" ")}
+                >
+                  Timer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleModeChange("manual")}
+                  className={[
+                    "rounded-full px-2.5 py-1",
+                    sessionMode === "manual"
+                      ? "bg-[var(--accent-solid)] text-[var(--text-on-accent)] shadow-sm"
+                      : "text-[var(--text-muted)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]",
+                  ].join(" ")}
+                >
+                  Manual
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleModeChange("pomodoro")}
+                  className={[
+                    "rounded-full px-2.5 py-1",
+                    sessionMode === "pomodoro"
+                      ? "bg-[var(--accent-solid)] text-[var(--text-on-accent)] shadow-sm"
+                      : "text-[var(--text-muted)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]",
+                  ].join(" ")}
+                >
+                  Pomodoro
+                </button>
               </div>
             </div>
 
-            {!useTimer ? (
+            {sessionMode === "manual" ? (
               <div className="space-y-1">
                 <Input
                   type="number"
@@ -311,54 +374,67 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
                   placeholder="25"
                 />
                 <p className="text-[0.7rem] text-[var(--text-muted)]">
-                  Minutes of focused work. Switch back to timer mode anytime.
+                  Minutes of focused work. Useful when you&apos;re logging
+                  something after the fact.
                 </p>
               </div>
             ) : (
               <div className="space-y-2 rounded-xl border-2 border-[var(--accent-soft)] bg-[var(--bg-surface-soft)] px-4 py-3">
                 <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="font-mono text-3xl tabular-nums text-[var(--text-primary)] sm:text-4xl">
-                    {formatElapsed(elapsedMs)}
+                    {formatElapsed(displayMs)}
                   </div>
                   <div className="flex items-center gap-2">
-                    {!isRunning ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={disableForm}
-                        className="h-9 px-4 text-xs font-medium bg-[var(--accent-solid)] text-[var(--text-on-accent)] hover:brightness-95"
-                        onClick={handleStartTimer}
-                      >
-                        Start timer
-                      </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="h-9 px-4 text-xs font-medium bg-[var(--accent-solid)] text-[var(--text-on-accent)] hover:brightness-95"
-                        onClick={handleStopTimer}
-                      >
-                        Pause
-                      </Button>
-                    )}
+                    {/* Play / pause icon */}
                     <Button
                       type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="h-9 px-3 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
-                      onClick={handleResetTimer}
+                      size="icon"
+                      disabled={
+                        disableForm ||
+                        !useTimer ||
+                        (!hasIntention && active.elapsedMs === 0)
+                      }
+                      className="h-9 w-9 rounded-full bg-[var(--accent-solid)] text-[var(--text-on-accent)] hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={handlePlayPauseTimer}
+                      aria-label={
+                        isRunning
+                          ? "Pause timer"
+                          : isPaused
+                          ? "Resume timer"
+                          : "Start timer"
+                      }
                     >
-                      Reset
+                      {isRunning ? (
+                        <Pause className="h-4 w-4" />
+                      ) : (
+                        <Play className="h-4 w-4" />
+                      )}
+                    </Button>
+
+                    {/* Reset icon */}
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-9 w-9 rounded-full text-[var(--text-muted)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]"
+                      onClick={handleResetTimer}
+                      disabled={disableForm || isIdle}
+                      aria-label="Reset timer"
+                    >
+                      <RotateCcw className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
-                <p className="text-[0.7rem] text-[var(--text-muted)]">
-                  When you save, this session will use{" "}
-                  <span className="font-mono text-[var(--text-primary)]">
-                    {effectiveDurationMinutes} min
-                  </span>{" "}
-                  as its duration.
-                </p>
+
+                {isPomodoro && (
+                  <p className="text-[0.7rem] text-[var(--text-muted)]">
+                    Pomodoro mode counts down from{" "}
+                    <span className="font-mono text-[var(--text-primary)]">
+                      {POMODORO_MINUTES}:00
+                    </span>{" "}
+                    and saves up to {POMODORO_MINUTES} minutes for this block.
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -380,7 +456,7 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
 
           {/* Footer: save + small summary */}
           <div className="mt-2 flex items-center justify-between">
-            <SubmitButton />
+            <SubmitButton disabled={!canSubmit} />
 
             <div className="text-right text-xs text-[var(--text-muted)]">
               <div className="text-[0.7rem] uppercase tracking-wide">

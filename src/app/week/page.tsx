@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+
 import { prisma } from "@/lib/prisma";
 import { getWeekRange, formatDuration } from "@/lib/time";
 import { getCurrentUserEmail } from "@/lib/server-auth";
@@ -16,7 +19,10 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarRange,
+  Lock,
 } from "lucide-react";
+
+const FREE_HISTORY_DAYS = 30;
 
 type WeekPageSearchParams = {
   offset?: string;
@@ -28,6 +34,13 @@ type WeekPageProps = {
   searchParams: Promise<WeekPageSearchParams>;
 };
 
+function getHistoryLimitDate() {
+  const d = new Date();
+  d.setDate(d.getDate() - FREE_HISTORY_DAYS);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 const WeekPage = async ({ searchParams }: WeekPageProps) => {
   const resolvedSearchParams = await searchParams;
   const rawOffset = resolvedSearchParams?.offset;
@@ -35,8 +48,10 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
 
   const weekOffset = rawOffset ? Number(rawOffset) || 0 : 0;
 
+  const session = await getServerSession(authOptions);
   const ownerEmail = await getCurrentUserEmail();
-  if (!ownerEmail) {
+
+  if (!session || !ownerEmail) {
     return (
       <Card className="w-full border-[var(--border-subtle)] bg-[var(--bg-surface)]">
         <CardHeader>
@@ -55,13 +70,35 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
     );
   }
 
+  // --- PLAN / HISTORY LIMIT SETUP (Option A: UserSettings) -----------------
+
+  const userSettings = await prisma.userSettings.upsert({
+    where: { ownerEmail },
+    update: {},
+    create: { ownerEmail },
+  });
+
+  const isPro = userSettings.plan === "PRO";
+  const isFreePlanWithLimit = !isPro;
+
+  const historyLimitDate = getHistoryLimitDate();
   const { start, end } = getWeekRange(weekOffset);
+
+  // For free users, never fetch sessions older than the limit.
+  const effectiveStart =
+    !isPro && start < historyLimitDate ? historyLimitDate : start;
+
+  // Whole week is strictly before the free window (so it’s “locked” for Free)
+  const isPastFreeHistory = !isPro && end <= historyLimitDate;
+  const isLockedWeek = isPastFreeHistory && isFreePlanWithLimit;
+
+  // --- DATA FETCH ----------------------------------------------------------
 
   const sessions = await prisma.session.findMany({
     where: {
       ownerEmail,
       startTime: {
-        gte: start,
+        gte: effectiveStart,
         lt: end,
       },
     },
@@ -191,6 +228,11 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
 
   const projectsCount = projectTotalsArray.length;
 
+  // For the “By day” totals line
+  const activeDaysCount = dayGroups.filter((d) => d.totalMs > 0).length;
+  const avgPerActiveDayMs =
+    activeDaysCount > 0 ? Math.round(totalMs / activeDaysCount) : 0;
+
   // URL helpers
   const buildHrefForOffset = (offset: number) => {
     const params = new URLSearchParams();
@@ -208,7 +250,6 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
   };
 
   const prevOffset = weekOffset - 1;
-
   const prevHref = buildHrefForOffset(prevOffset);
 
   // Reorder dayGroups so the active day shows first
@@ -241,6 +282,21 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
                 {weekStartLabel} – {weekEndLabel}
               </span>
             </p>
+
+            {isFreePlanWithLimit && (
+              <p className="mt-1 text-[0.7rem] text-[var(--text-muted)]">
+                Free plan shows the last{" "}
+                <span className="font-mono">{FREE_HISTORY_DAYS}</span> days of
+                history.{" "}
+                <Link
+                  href="/settings"
+                  className="font-medium text-[var(--accent-solid)] hover:underline"
+                >
+                  Upgrade to Pro
+                </Link>{" "}
+                to unlock your full Weekline.
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col items-end gap-2">
@@ -252,7 +308,7 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
               >
                 <Link
                   href={prevHref}
-                  className=" text-xs flex items-center gap-1"
+                  className="flex items-center gap-1 text-xs"
                 >
                   <ChevronLeft className="h-4 w-4" />
                   <span>Previous</span>
@@ -291,7 +347,115 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
       </CardHeader>
 
       <CardContent>
-        {sessions.length === 0 ? (
+        {/* LOCKED WEEK (free user scrolling beyond 30 days) */}
+        {sessions.length === 0 && isLockedWeek ? (
+          <div className="space-y-4">
+            {/* Week label row */}
+            <div className="mb-1 flex items-center justify-between gap-4 px-1 sm:px-2">
+              <span className="text-[0.7rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                Week
+              </span>
+              <span className="hidden text-[0.7rem] text-[var(--text-muted)] sm:inline">
+                Older weeks are part of your extended history.
+              </span>
+            </div>
+
+            {/* Week strip with blur overlay */}
+            <div
+              className={cn(
+                "relative rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-3 py-4 sm:px-6 sm:py-5",
+                "overflow-hidden"
+              )}
+            >
+              <div className="mx-auto max-w-full overflow-x-auto">
+                <div className="flex min-w-max justify-start gap-2 blur-[2px] opacity-60 sm:gap-3">
+                  {weekDays.map((day) => {
+                    const isActive = day.key === activeDayKey;
+                    const isWeekend = day.isWeekend;
+
+                    return (
+                      <div
+                        key={day.key}
+                        className={cn(
+                          "flex w-16 flex-col items-center rounded-2xl px-2.5 py-2.5 text-xs sm:w-20",
+                          isActive
+                            ? "bg-[var(--accent-solid)] text-[var(--bg-app)] shadow-md"
+                            : "bg-[var(--bg-surface)] text-[var(--text-primary)]"
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "text-[0.65rem] font-semibold tracking-[0.16em]",
+                            isWeekend
+                              ? isActive
+                                ? "text-red-600"
+                                : "text-red-400"
+                              : isActive
+                              ? "text-[var(--bg-app)]"
+                              : "text-[var(--text-muted)]"
+                          )}
+                        >
+                          {day.label}
+                        </span>
+                        <span
+                          className={cn(
+                            "mt-1 text-lg font-mono",
+                            isActive
+                              ? "text-[var(--bg-app)]"
+                              : "text-[var(--text-primary)]"
+                          )}
+                        >
+                          {day.dayNumber}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <p className="mt-4 text-center text-[0.65rem] text-[var(--text-muted)] sm:hidden">
+                Older weeks are part of your extended history.
+              </p>
+
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="rounded-full bg-[color:rgba(0,0,0,0.7)] px-4 py-1 text-[0.7rem] font-medium text-[var(--text-primary)]">
+                  Weekline Pro unlocks this week&apos;s details
+                </div>
+              </div>
+            </div>
+
+            {/* Upsell message under the strip */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-4 py-3 text-xs text-[var(--text-muted)]">
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--bg-surface)]">
+                  <Lock className="h-3 w-3 text-[var(--text-muted)]" />
+                </div>
+                <div>
+                  <p className="text-sm text-[var(--text-primary)]">
+                    This week is outside your free history window.
+                  </p>
+                  <p className="mt-1 text-[0.7rem] text-[var(--text-muted)]">
+                    Weekline Free keeps the last {FREE_HISTORY_DAYS} days of
+                    activity visible. Upgrade to Pro to unlock your full
+                    timeline and explore all past weeks.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button asChild size="sm" className="text-xs">
+                  <Link href="/settings">Upgrade to Pro</Link>
+                </Button>
+                <Link
+                  href={buildHrefForOffset(0)}
+                  className="text-[0.7rem] font-medium text-[var(--accent-solid)] hover:underline"
+                >
+                  Jump back to recent weeks →
+                </Link>
+              </div>
+            </div>
+          </div>
+        ) : sessions.length === 0 ? (
+          // NORMAL EMPTY STATE (no sessions, but week is within free window)
           <div className="mt-2 space-y-2 text-sm text-[var(--text-muted)]">
             <p>
               No sessions logged this week yet. Log a few focus sessions on the{" "}
@@ -321,66 +485,68 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
                 </span>
               </div>
 
-              {/* Week strip */}
-              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-4 py-5 sm:px-6">
-                <div className="mx-auto flex max-w-4xl justify-between gap-2 sm:gap-3">
-                  {weekDays.map((day) => {
-                    const isActive = day.key === activeDayKey;
-                    const isWeekend = day.isWeekend;
+              {/* Week strip (normal, interactive) */}
+              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-3 py-4 sm:px-6 sm:py-5">
+                <div className="mx-auto max-w-full overflow-x-auto">
+                  <div className="flex min-w-max justify-start gap-2 sm:gap-3">
+                    {weekDays.map((day) => {
+                      const isActive = day.key === activeDayKey;
+                      const isWeekend = day.isWeekend;
 
-                    return (
-                      <Link
-                        key={day.key}
-                        href={buildHrefForDay(day.key)}
-                        scroll={false}
-                        className={cn(
-                          "flex w-16 flex-col items-center rounded-2xl px-2.5 py-2.5 text-xs transition sm:w-20",
-                          isActive
-                            ? "bg-[var(--accent-solid)] text-[var(--bg-app)] shadow-md"
-                            : "bg-[var(--bg-surface)] text-[var(--text-primary)] hover:bg-[var(--bg-surface-soft)]"
-                        )}
-                      >
-                        <span
+                      return (
+                        <Link
+                          key={day.key}
+                          href={buildHrefForDay(day.key)}
+                          scroll={false}
                           className={cn(
-                            "text-[0.65rem] font-semibold tracking-[0.16em]",
-                            isWeekend
-                              ? isActive
-                                ? "text-red-600"
-                                : "text-red-400"
-                              : isActive
-                              ? "text-[var(--bg-app)]"
-                              : "text-[var(--text-muted)]"
-                          )}
-                        >
-                          {day.label}
-                        </span>
-                        <span
-                          className={cn(
-                            "mt-1 text-lg font-mono",
+                            "flex w-16 flex-col items-center rounded-2xl px-2.5 py-2.5 text-xs transition sm:w-20",
                             isActive
-                              ? "text-[var(--bg-app)]"
-                              : "text-[var(--text-primary)]"
+                              ? "bg-[var(--accent-solid)] text-[var(--bg-app)] shadow-md"
+                              : "bg-[var(--bg-surface)] text-[var(--text-primary)] hover:bg-[var(--bg-surface-soft)]"
                           )}
                         >
-                          {day.dayNumber}
-                        </span>
-                        {day.hasSessions && (
                           <span
                             className={cn(
-                              "mt-2 h-1.5 w-1.5 rounded-full",
-                              isActive
-                                ? "bg-[color:rgba(0,0,0,0.5)]"
-                                : "bg-[var(--accent-solid)]"
+                              "text-[0.65rem] font-semibold tracking-[0.16em]",
+                              isWeekend
+                                ? isActive
+                                  ? "text-red-600"
+                                  : "text-red-400"
+                                : isActive
+                                ? "text-[var(--bg-app)]"
+                                : "text-[var(--text-muted)]"
                             )}
-                          />
-                        )}
-                      </Link>
-                    );
-                  })}
+                          >
+                            {day.label}
+                          </span>
+                          <span
+                            className={cn(
+                              "mt-1 text-lg font-mono",
+                              isActive
+                                ? "text-[var(--bg-app)]"
+                                : "text-[var(--text-primary)]"
+                            )}
+                          >
+                            {day.dayNumber}
+                          </span>
+                          {day.hasSessions && (
+                            <span
+                              className={cn(
+                                "mt-2 h-1.5 w-1.5 rounded-full",
+                                isActive
+                                  ? "bg-[color:rgba(0,0,0,0.5)]"
+                                  : "bg-[var(--accent-solid)]"
+                              )}
+                            />
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <p className="mt-4 text-center text-[0.65rem] text-[var(--text-muted)] sm:hidden">
-                  Tap a day to focus it in the list below.
+                  Swipe left/right to pick a day and see its sessions below.
                 </p>
               </div>
 
@@ -439,7 +605,7 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
                           : "border-[var(--border-subtle)]"
                       )}
                     >
-                      <div className="flex items-baseline justify-between gap-2">
+                      <div className="flex items-baseline justify-between gap-2 border-b border-[var(--border-subtle)] pb-2">
                         <div className="text-sm font-medium text-[var(--text-primary)]">
                           {day.label}
                           {day.key === activeDayKey && (
@@ -447,12 +613,6 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
                               Selected
                             </span>
                           )}
-                        </div>
-                        <div className="text-xs text-[var(--text-muted)]">
-                          Total:{" "}
-                          <span className="font-mono text-[var(--text-primary)]">
-                            {formatDuration(day.totalMs)}
-                          </span>
                         </div>
                       </div>
 
@@ -490,6 +650,19 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
                           );
                         })}
                       </ul>
+
+                      <div className="mt-3 flex items-center justify-between gap-2 border-t border-[var(--border-subtle)] pt-2 text-[0.7rem] text-[var(--text-muted)]">
+                        <span>Day total</span>
+                        <div className="flex items-center gap-3">
+                          <span>
+                            {day.sessions.length} session
+                            {day.sessions.length !== 1 ? "s" : ""}
+                          </span>
+                          <span className="font-mono text-[var(--text-primary)]">
+                            {formatDuration(day.totalMs)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

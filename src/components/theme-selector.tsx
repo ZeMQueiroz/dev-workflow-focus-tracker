@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { themes, type ThemeId } from "@/lib/themes";
 import { useTheme } from "./theme-provider";
+import type { MotionBackground } from "./theme-provider";
 
 // Swatch gradients for the preview strip
 const themeSwatches: Record<ThemeId, { from: string; to: string }> = {
@@ -74,7 +75,7 @@ function hexToRgba(hex: string, alpha: number): string {
   const g = parseInt(cleaned.slice(2, 4), 16);
   const b = parseInt(cleaned.slice(4, 6), 16);
 
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  return `rgba(${r}, ${g}, ${b}, alpha)`.replace("alpha", String(alpha));
 }
 
 type StoredCustomPayload =
@@ -179,9 +180,65 @@ function useCustomThemeColors(activeTheme: ThemeId) {
   return [colors, setColors, baseVariant, setBaseVariant] as const;
 }
 
+// Motion background options shown under the theme tiles
+const motionBackgroundOptions: {
+  id: MotionBackground;
+  label: string;
+  description: string;
+  previewGradient: string;
+}[] = [
+  {
+    id: "none",
+    label: "Static background",
+    description: "Plain background with no motion.",
+    previewGradient:
+      "radial-gradient(circle at 0% 0%, #6b7280 0, transparent 55%), var(--bg-app)",
+  },
+  {
+    id: "soft",
+    label: "Soft gradient",
+    description: "Subtle animated gradients behind the app shell.",
+    previewGradient:
+      "radial-gradient(circle at 0% 0%, #22c55e 0, transparent 55%), radial-gradient(circle at 100% 100%, #0ea5e9 0, transparent 55%), var(--bg-app)",
+  },
+  {
+    id: "aurora",
+    label: "Aurora gradient",
+    description: "Colorful, high-energy motion background.",
+    previewGradient:
+      "radial-gradient(circle at 10% 0%, #38bdf8 0, transparent 55%), radial-gradient(circle at 90% 100%, #a855f7 0, transparent 55%), radial-gradient(circle at 0% 100%, #f97316 0, transparent 55%), var(--bg-app)",
+  },
+  {
+    id: "dusk",
+    label: "Dusk horizon",
+    description: "Warm sunset-style gradient with slow movement.",
+    previewGradient:
+      "radial-gradient(circle at 0% 0%, #f472b6 0, transparent 55%), radial-gradient(circle at 100% 0%, #fbbf24 0, transparent 55%), radial-gradient(circle at 50% 100%, #fb7185 0, transparent 60%), var(--bg-app)",
+  },
+  {
+    id: "ocean",
+    label: "Deep ocean",
+    description: "Cool blue–teal gradient with gentle motion.",
+    previewGradient:
+      "radial-gradient(circle at 0% 0%, #3b82f6 0, transparent 55%), radial-gradient(circle at 100% 100%, #14b8a6 0, transparent 55%), radial-gradient(circle at 0% 100%, #818cf8 0, transparent 60%), var(--bg-app)",
+  },
+  {
+    id: "nebula",
+    label: "Midnight nebula",
+    description: "Purple–pink nebula glow with slow drift.",
+    previewGradient:
+      "radial-gradient(circle at 0% 0%, #9333ea 0, transparent 55%), radial-gradient(circle at 100% 0%, #ec4899 0, transparent 55%), radial-gradient(circle at 0% 100%, #22d3ee 0, transparent 60%), var(--bg-app)",
+  },
+];
+
 const ThemeSelector = () => {
-  // Pull from our theme provider, but widen types locally
-  const { theme: rawTheme, setTheme: rawSetTheme } = useTheme();
+  // Pull from our theme provider
+  const {
+    theme: rawTheme,
+    setTheme: rawSetTheme,
+    motionBackground,
+    setMotionBackground,
+  } = useTheme();
 
   // Fallback to "slate" if theme is undefined on first render
   const theme = (rawTheme ?? "slate") as ThemeId;
@@ -205,7 +262,7 @@ const ThemeSelector = () => {
   };
 
   return (
-    <div className="mt-4 space-y-4">
+    <div className="mt-4 space-y-6">
       {/* Theme tiles */}
       <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
         {themes.map((t) => {
@@ -422,6 +479,48 @@ const ThemeSelector = () => {
           </button>
         </div>
       )}
+
+      {/* Motion background picker */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-[0.75rem] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+            Motion background
+          </h3>
+          <span className="text-[0.7rem] text-[var(--text-muted)]">
+            Animated gradient behind the app shell.
+          </span>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          {motionBackgroundOptions.map((opt) => {
+            const isActive = motionBackground === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setMotionBackground(opt.id)}
+                className={[
+                  "flex flex-col items-start rounded-xl border px-3 py-2 text-left text-xs transition",
+                  isActive
+                    ? "border-[var(--accent-solid)] bg-[var(--bg-surface)] shadow-sm"
+                    : "border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-surface)]",
+                ].join(" ")}
+              >
+                <div
+                  className="mb-2 h-8 w-full rounded-md border border-[var(--border-subtle)]"
+                  style={{ background: opt.previewGradient }}
+                />
+                <div className="text-[0.75rem] font-medium text-[var(--text-primary)]">
+                  {opt.label}
+                </div>
+                <p className="mt-0.5 text-[0.7rem] text-[var(--text-muted)]">
+                  {opt.description}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 };

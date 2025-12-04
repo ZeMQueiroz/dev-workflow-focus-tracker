@@ -51,7 +51,8 @@ export const ChartContainer = ({
     <ChartContext.Provider value={{ config }}>
       <div
         className={cn(
-          "flex aspect-video flex-col justify-center gap-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-4",
+          "flex flex-col justify-center gap-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3 sm:p-4",
+          "min-h-[220px] sm:min-h-[260px] md:aspect-video",
           className
         )}
         style={style}
@@ -74,20 +75,11 @@ type ChartTooltipItem = {
 };
 
 export type ChartTooltipContentProps = {
-  /** Whether the tooltip is visible (from Recharts). */
   active?: boolean;
-  /** Label for the current point (from Recharts). */
   label?: string | number | React.ReactNode;
-  /** Series payload entries (from Recharts). */
   payload?: ChartTooltipItem[];
-
-  /** Custom value formatter. Return any ReactNode. */
   formatter?: (value: number, name?: string) => React.ReactNode;
-
-  /** Optional indicator style (kept for API compatibility). */
   indicator?: "dot" | "line" | "none";
-
-  /** Optional label formatter for the tooltip header. */
   labelFormatter?: (
     label: string | number | React.ReactNode
   ) => React.ReactNode;

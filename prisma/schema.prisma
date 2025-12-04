@@ -39,9 +39,23 @@ model WeeklyHighlight {
   ownerEmail String
   weekStart  DateTime
   highlight  String
-
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   @@unique([ownerEmail, weekStart], name: "ownerEmail_weekStart")
+}
+
+model UserSettings {
+  id         Int      @id @default(autoincrement())
+  ownerEmail String   @unique
+  plan       String   @default("FREE")
+
+  stripeCustomerId     String? @unique
+  stripeSubscriptionId String? @unique
+
+  isPro        Boolean   @default(false)
+  proExpiresAt DateTime?
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
