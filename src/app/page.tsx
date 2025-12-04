@@ -321,7 +321,7 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
     // leave projects/sessions as empty arrays so UI still renders
   }
 
-  const totalMs = sessions.reduce((acc, s) => acc + s.durationMs, 0);
+  const totalMs = sessions.reduce<number>((acc, s) => acc + s.durationMs, 0);
   const sessionsCount = sessions.length;
 
   // Build a quick lookup for projects by ID
