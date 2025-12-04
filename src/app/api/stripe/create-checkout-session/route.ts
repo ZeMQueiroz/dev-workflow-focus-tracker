@@ -15,12 +15,13 @@ export async function POST() {
     const ownerEmail = session.user.email;
 
     // Ensure we have a UserSettings row
-    let userSettings = await prisma.userSettings.findUnique({
+    // Access via index to avoid stale Prisma types during generation
+    let userSettings = await (prisma as any).userSettings.findUnique({
       where: { ownerEmail },
     });
 
     if (!userSettings) {
-      userSettings = await prisma.userSettings.create({
+      userSettings = await (prisma as any).userSettings.create({
         data: { ownerEmail },
       });
     }
@@ -36,7 +37,7 @@ export async function POST() {
 
       stripeCustomerId = customer.id;
 
-      await prisma.userSettings.update({
+      await (prisma as any).userSettings.update({
         where: { ownerEmail },
         data: { stripeCustomerId },
       });
