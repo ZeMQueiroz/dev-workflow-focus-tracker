@@ -69,7 +69,7 @@ export async function POST(req: Request) {
 
         const isActive = status === "active" || status === "trialing";
 
-        await prisma.userSettings.upsert({
+        await (prisma as any).userSettings.upsert({
           where: { ownerEmail },
           update: {
             stripeCustomerId: customerId,
