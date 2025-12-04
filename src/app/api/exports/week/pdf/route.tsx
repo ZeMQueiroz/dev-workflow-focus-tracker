@@ -14,6 +14,11 @@ import { getWeekRange, formatDuration } from "@/lib/time";
 import { getCurrentUserEmail } from "@/lib/server-auth";
 import type { Prisma } from "@prisma/client";
 
+// Add a type for the included relation
+type SessionWithProject = Prisma.SessionGetPayload<{
+  include: { project: true };
+}>;
+
 type SummaryMode = "self" | "manager" | "client";
 
 const styles = StyleSheet.create({
@@ -359,7 +364,10 @@ export async function GET(req: NextRequest) {
     sessionWhere.projectId = projectFilterId;
   }
 
-  const [sessions, weeklyHighlight] = await Promise.all([
+  const [sessions, weeklyHighlight]: [
+    SessionWithProject[],
+    Awaited<ReturnType<typeof prisma.weeklyHighlight.findUnique>>
+  ] = await Promise.all([
     prisma.session.findMany({
       where: sessionWhere,
       include: { project: true },
@@ -382,9 +390,12 @@ export async function GET(req: NextRequest) {
   const projectTotals = sessions.reduce<
     Record<number, { name: string; totalMs: number; count: number }>
   >((acc, s) => {
+    // Guard sessions without a projectId
+    if (s.projectId == null) return acc;
+
     if (!acc[s.projectId]) {
       acc[s.projectId] = {
-        name: s.project.name,
+        name: s.project?.name ?? "",
         totalMs: 0,
         count: 0,
       };

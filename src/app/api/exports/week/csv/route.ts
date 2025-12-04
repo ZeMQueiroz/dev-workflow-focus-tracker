@@ -12,6 +12,11 @@ const escapeCsv = (value: string | null | undefined) => {
   return str;
 };
 
+// Add a type for the included relation
+type SessionWithProject = Prisma.SessionGetPayload<{
+  include: { project: true };
+}>;
+
 export const GET = async (request: Request) => {
   const ownerEmail = await getCurrentUserEmail();
   if (!ownerEmail) {
@@ -43,7 +48,7 @@ export const GET = async (request: Request) => {
     where.projectId = projectId;
   }
 
-  const sessions = await prisma.session.findMany({
+  const sessions: SessionWithProject[] = await prisma.session.findMany({
     where,
     include: {
       project: true,
@@ -73,7 +78,7 @@ export const GET = async (request: Request) => {
       date,
       startTime,
       endTime,
-      s.project.name,
+      s.project?.name ?? "", // safer if project can be null
       s.intention,
       s.notes ?? "",
       durationMinutes.toString(),

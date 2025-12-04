@@ -4,6 +4,11 @@ import { getWeekRange } from "@/lib/time";
 import { getCurrentUserEmail } from "@/lib/server-auth";
 import type { Prisma } from "@prisma/client";
 
+// Add a type for the included relation
+type SessionWithProject = Prisma.SessionGetPayload<{
+  include: { project: true };
+}>;
+
 export const GET = async (request: Request) => {
   const ownerEmail = await getCurrentUserEmail();
   if (!ownerEmail) {
@@ -35,7 +40,7 @@ export const GET = async (request: Request) => {
     where.projectId = projectId;
   }
 
-  const sessions = await prisma.session.findMany({
+  const sessions: SessionWithProject[] = await prisma.session.findMany({
     where,
     include: {
       project: true,
@@ -53,7 +58,7 @@ export const GET = async (request: Request) => {
     durationMs: s.durationMs,
     durationMinutes: Math.round(s.durationMs / 60000),
     projectId: s.projectId,
-    projectName: s.project.name,
+    projectName: s.project?.name ?? "",
     intention: s.intention,
     notes: s.notes,
     createdAt: s.createdAt.toISOString(),
