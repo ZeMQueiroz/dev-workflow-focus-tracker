@@ -18,12 +18,18 @@ import {
   Users,
 } from "lucide-react";
 
+import type { Prisma } from "@prisma/client";
+
+// ✅ Correct type for sessions including the project relation
+type SessionWithProject = Prisma.SessionGetPayload<{
+  include: { project: true };
+}>;
+
 type TodayPageSearchParams = {
   onboarding?: string;
 };
 
 type TodayPageProps = {
-  // Next 16: searchParams is a Promise
   searchParams: Promise<TodayPageSearchParams>;
 };
 
@@ -47,7 +53,7 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
       <Card className="w-full border-[var(--border-subtle)] bg-[var(--bg-surface)]">
         <CardContent className="p-6 md:p-10 lg:p-12">
           <div className="grid gap-10 lg:grid-cols-[minmax(0,1.45fr),minmax(0,1.1fr)] lg:items-center">
-            {/* LEFT: hero + CTA + key value props */}
+            {/* LEFT: hero + CTA */}
             <div className="space-y-7">
               {/* Beta pill */}
               <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-3 py-1 text-[0.7rem] font-medium uppercase tracking-wide text-[var(--text-muted)]">
@@ -67,7 +73,7 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
                 </p>
               </div>
 
-              {/* Three core benefits */}
+              {/* Benefits */}
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="flex gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3">
                   <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--bg-surface)]">
@@ -109,8 +115,7 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
                     </div>
                     <p className="mt-1 text-xs text-[var(--text-muted)]">
                       The Summary tab generates a Markdown report you can paste
-                      into Obsidian, Notion, or email — no formatting, no
-                      screenshots.
+                      directly into Obsidian or email — no formatting needed.
                     </p>
                   </div>
                 </div>
@@ -124,8 +129,7 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
                     className="mt-0 h-10 px-5 text-sm md:text-base"
                   />
                   <span className="text-xs text-[var(--text-muted)] md:text-sm">
-                    Free while in beta. No automatic tracking — only what you
-                    choose to log.
+                    Free while in beta.
                   </span>
                 </div>
 
@@ -136,14 +140,11 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
                   >
                     Skip intro and open the app →
                   </Link>
-                  <span className="hidden text-[var(--text-muted)] sm:inline">
-                    You can always come back to this overview later.
-                  </span>
                 </div>
               </div>
             </div>
 
-            {/* RIGHT: product preview / who it's for */}
+            {/* RIGHT: fake preview */}
             <div className="space-y-5 rounded-2xl border border-[var(--border-subtle)] bg-gradient-to-b from-[var(--bg-surface-soft)] to-[var(--bg-surface)] p-4 sm:p-5">
               {/* Fake top bar */}
               <div className="flex items-center justify-between gap-3">
@@ -157,7 +158,7 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
                 </div>
               </div>
 
-              {/* Fake "Today" preview */}
+              {/* Fake preview */}
               <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div>
@@ -211,7 +212,7 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
                 </ul>
               </div>
 
-              {/* Who it's for + roadmap */}
+              {/* Who it's for */}
               <div className="grid gap-3 text-[0.75rem] text-[var(--text-primary)] sm:grid-cols-2">
                 <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3">
                   <div className="flex items-center gap-2">
@@ -259,7 +260,7 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
   }
 
   /* ------------------------------------------------------------------ */
-  /* LOGGED OUT (NO ONBOARDING PARAM)                                  */
+  /* LOGGED OUT (NO ONBOARDING PARAM) */
   /* ------------------------------------------------------------------ */
 
   if (!ownerEmail) {
@@ -269,8 +270,7 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
           Today&apos;s focus
         </h1>
         <p className="mt-2">
-          Please sign in using the button in the top-right (GitHub or Google) to
-          log focus sessions and see your daily log.
+          Please sign in using the button in the top-right to log sessions.
         </p>
         <InlineSignInButton label="Sign in to Focus Tracker" />
       </div>
@@ -278,18 +278,16 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
   }
 
   /* ------------------------------------------------------------------ */
-  /* AUTHENTICATED FLOW                                                 */
+  /* AUTHENTICATED FLOW */
   /* ------------------------------------------------------------------ */
 
   const { start, end } = getTodayRange();
 
-  // 🛡️ DB calls wrapped in try/catch + fallback so Prisma timeouts
-  // don't crash the whole page.
   let projects: Awaited<ReturnType<typeof prisma.project.findMany>> = [];
-  let sessions: Awaited<ReturnType<typeof prisma.session.findMany>> = [];
+  let sessions: SessionWithProject[] = [];
 
   try {
-    const [projectsResult, sessionsResult] = await Promise.all([
+    const [projectsResult, sessionsResultRaw] = await Promise.all([
       prisma.project.findMany({
         where: { ownerEmail, isArchived: false },
         orderBy: { createdAt: "asc" },
@@ -297,37 +295,29 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
       prisma.session.findMany({
         where: {
           ownerEmail,
-          startTime: {
-            gte: start,
-            lt: end,
-          },
+          startTime: { gte: start, lt: end },
         },
-        include: {
-          project: true,
-        },
-        orderBy: {
-          startTime: "asc", // oldest -> newest for a proper timeline
-        },
+        include: { project: true },
+        orderBy: { startTime: "asc" },
       }),
     ]);
 
     projects = projectsResult;
-    sessions = sessionsResult;
+    sessions = sessionsResultRaw as SessionWithProject[];
   } catch (err) {
     console.error(
       "TodayPage: failed to load projects/sessions, falling back to empty lists.",
       err
     );
-    // leave projects/sessions as empty arrays so UI still renders
   }
 
   const totalMs = sessions.reduce<number>((acc, s) => acc + s.durationMs, 0);
   const sessionsCount = sessions.length;
 
-  // Build a quick lookup for projects by ID
+  // Lookup by id
   const projectById = new Map(projects.map((p) => [p.id, p]));
 
-  // Figure out the "primary" project for today by total time
+  // Determine primary project
   let primaryProjectName = "—";
   if (sessions.length > 0) {
     const perProject = sessions.reduce<
@@ -336,10 +326,7 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
       const proj = projectById.get(s.projectId);
       const projName = proj?.name ?? "—";
       if (!acc[s.projectId]) {
-        acc[s.projectId] = {
-          name: projName,
-          totalMs: 0,
-        };
+        acc[s.projectId] = { name: projName, totalMs: 0 };
       }
       acc[s.projectId].totalMs += s.durationMs;
       return acc;
@@ -348,10 +335,7 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
     const top = Object.values(perProject).sort(
       (a, b) => b.totalMs - a.totalMs
     )[0];
-
-    if (top) {
-      primaryProjectName = top.name;
-    }
+    if (top) primaryProjectName = top.name;
   }
 
   const projectSummaries = projects.map((p) => ({
@@ -366,7 +350,6 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
     day: "numeric",
   });
 
-  // Map Prisma sessions → SessionList items
   const sessionItems = sessions.map((s) => {
     const proj = projectById.get(s.projectId);
     return {
@@ -383,7 +366,6 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
 
   return (
     <div className="w-full space-y-4">
-      {/* Light Today header */}
       <header className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
@@ -397,10 +379,10 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
       </header>
 
       <div className="flex w-full flex-col gap-6 lg:flex-row">
-        {/* Left: new session (timer-first) */}
+        {/* LEFT: new session */}
         <NewSessionForm projects={projectSummaries} totalTodayMs={totalMs} />
 
-        {/* Right: today overview + log */}
+        {/* RIGHT: today's log */}
         <Card className="flex-1">
           <CardHeader className="border-b border-[var(--border-subtle)] pb-3">
             <div className="flex items-center justify-between gap-2">
@@ -412,35 +394,36 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
               </span>
             </div>
             <p className="mt-1 text-xs text-[var(--text-muted)]">
-              A simple timeline of the focus blocks you saved today.
+              A simple timeline of your focus blocks.
             </p>
           </CardHeader>
 
           <CardContent className="pt-4">
-            {/* Today at a glance */}
             <div className="grid gap-3 md:grid-cols-3">
               <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3">
                 <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
                   <span>Total time</span>
-                  <Timer className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+                  <Timer className="h-3.5 w-3.5" />
                 </div>
                 <div className="mt-1 text-2xl font-mono text-[var(--text-primary)]">
                   {formatDuration(totalMs)}
                 </div>
               </div>
+
               <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3">
                 <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
                   <span>Sessions</span>
-                  <ListChecks className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+                  <ListChecks className="h-3.5 w-3.5" />
                 </div>
                 <div className="mt-1 text-2xl font-mono text-[var(--text-primary)]">
                   {sessionsCount}
                 </div>
               </div>
+
               <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3">
                 <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
                   <span>Primary project</span>
-                  <FolderKanban className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+                  <FolderKanban className="h-3.5 w-3.5" />
                 </div>
                 <div className="mt-1 truncate text-sm font-medium text-[var(--text-primary)]">
                   {primaryProjectName}
@@ -448,7 +431,6 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
               </div>
             </div>
 
-            {/* Timeline with inline edit/delete */}
             <SessionList sessions={sessionItems} totalMs={totalMs} />
           </CardContent>
         </Card>
