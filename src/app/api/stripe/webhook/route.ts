@@ -95,7 +95,7 @@ export async function POST(req: Request) {
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
 
-        const settings = await prisma.userSettings.findFirst({
+        const settings = await (prisma as any).userSettings.findFirst({
           where: { stripeSubscriptionId: subscription.id },
         });
 
@@ -107,7 +107,7 @@ export async function POST(req: Request) {
           subscription.status === "active" ||
           subscription.status === "trialing";
 
-        await prisma.userSettings.update({
+        await (prisma as any).userSettings.update({
           where: { ownerEmail: settings.ownerEmail },
           data: {
             isPro: isActive,
