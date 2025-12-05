@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { getWeekRange, formatDuration } from "@/lib/time";
@@ -24,20 +25,9 @@ import {
 
 const FREE_HISTORY_DAYS = 30;
 
-interface Project {
-  name: string;
-  color: string | null;
-}
-
-interface SessionWithProject {
-  id: number;
-  projectId: number;
-  startTime: Date;
-  durationMs: number;
-  intention: string;
-  notes: string | null;
-  project: Project;
-}
+type SessionWithProject = Prisma.SessionGetPayload<{
+  include: { project: true };
+}>;
 
 interface ProjectTotalsEntry {
   name: string;
