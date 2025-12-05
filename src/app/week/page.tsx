@@ -481,7 +481,7 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
               tab, then come back here to see your weekly patterns.
             </p>
             <Link
-              href="/"
+              href="/today"
               className="inline-flex items-center text-xs font-medium text-[var(--accent-solid)] hover:underline"
             >
               Go to Today →

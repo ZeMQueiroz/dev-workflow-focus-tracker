@@ -15,9 +15,7 @@ export const createProject = async (formData: FormData) => {
   if (!name) return;
 
   const color =
-    typeof colorRaw === "string" && colorRaw.trim()
-      ? colorRaw.trim()
-      : null;
+    typeof colorRaw === "string" && colorRaw.trim() ? colorRaw.trim() : null;
 
   await prisma.project.create({
     data: {
@@ -28,7 +26,7 @@ export const createProject = async (formData: FormData) => {
   });
 
   revalidatePath("/projects");
-  revalidatePath("/");
+  revalidatePath("/today");
   revalidatePath("/week");
   revalidatePath("/summary");
 };
@@ -49,7 +47,7 @@ export const archiveProject = async (formData: FormData) => {
   });
 
   revalidatePath("/projects");
-  revalidatePath("/");
+
   revalidatePath("/week");
   revalidatePath("/summary");
 };
@@ -70,7 +68,7 @@ export const unarchiveProject = async (formData: FormData) => {
   });
 
   revalidatePath("/projects");
-  revalidatePath("/");
+  revalidatePath("/today");
   revalidatePath("/week");
   revalidatePath("/summary");
 };
@@ -95,7 +93,7 @@ export const renameProject = async (formData: FormData) => {
   });
 
   revalidatePath("/projects");
-  revalidatePath("/");
+
   revalidatePath("/week");
   revalidatePath("/summary");
 };

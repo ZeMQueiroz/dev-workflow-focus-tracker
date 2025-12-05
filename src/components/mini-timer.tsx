@@ -103,7 +103,7 @@ const MiniTimer = () => {
             </button>
 
             <Link
-              href="/"
+              href="/today"
               className="hidden rounded-full bg-[var(--bg-surface-soft)] px-2 py-1 text-[0.65rem] text-[var(--text-muted)] hover:text-[var(--text-primary)] sm:inline"
             >
               Open Today

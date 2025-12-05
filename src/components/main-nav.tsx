@@ -25,10 +25,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { PlanModalTrigger } from "@/components/plan-modal-trigger";
 import logo from "../../public/weekline-icon.png";
 
 const navItems = [
-  { href: "/", label: "Today", icon: SunMedium },
+  { href: "/today", label: "Today", icon: SunMedium },
   { href: "/week", label: "Week", icon: CalendarRange },
   { href: "/summary", label: "Summary", icon: FileText },
   { href: "/projects", label: "Projects", icon: FolderKanban },
@@ -108,8 +109,8 @@ const MainNav = () => {
           <nav className="hidden items-center gap-1 text-sm md:flex">
             {navItems.map((item) => {
               const isActive =
-                item.href === "/"
-                  ? pathname === "/"
+                item.href === "/today"
+                  ? pathname === "/today"
                   : pathname.startsWith(item.href);
               const Icon = item.icon;
 
@@ -139,17 +140,17 @@ const MainNav = () => {
         <div className="flex items-center gap-2">
           {isAuthenticated && session?.user ? (
             <>
-              {/* Upgrade pill for free users (desktop only, not on welcome if you want you can keep it) */}
+              {/* Upgrade pill for free users (desktop only, not on welcome) */}
               {!isWelcome && isPro === false && (
-                <Link href="/settings#plan" className="hidden sm:block">
+                <PlanModalTrigger currentPlan="free">
                   <Button
                     size="sm"
-                    className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-solid)] px-3 py-1 text-[0.7rem] font-medium text-[var(--text-on-accent)] shadow-sm hover:brightness-110"
+                    className="hidden sm:inline-flex items-center gap-1 rounded-full bg-[var(--accent-solid)] px-3 py-1 text-[0.7rem] font-medium text-[var(--text-on-accent)] shadow-sm hover:brightness-110"
                   >
                     <Sparkles className="h-3 w-3" />
                     <span>Upgrade</span>
                   </Button>
-                </Link>
+                </PlanModalTrigger>
               )}
 
               {/* User dropdown */}
@@ -208,7 +209,7 @@ const MainNav = () => {
             <Button
               size="sm"
               className="bg-[var(--accent-solid)] text-xs font-medium text-slate-900 hover:brightness-75"
-              onClick={() => signIn(undefined, { callbackUrl: "/" })}
+              onClick={() => signIn(undefined, { callbackUrl: "/today" })}
             >
               Sign in
             </Button>
@@ -221,8 +222,8 @@ const MainNav = () => {
         <nav className="flex gap-1 border-t border-[var(--border-subtle)] px-2 py-2 text-xs text-[var(--text-muted)] md:hidden">
           {navItems.map((item) => {
             const isActive =
-              item.href === "/"
-                ? pathname === "/"
+              item.href === "/today"
+                ? pathname === "/today"
                 : pathname.startsWith(item.href);
             const Icon = item.icon;
 

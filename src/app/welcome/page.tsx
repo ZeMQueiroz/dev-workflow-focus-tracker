@@ -46,32 +46,13 @@ const WelcomePage = async () => {
           {/* Centered CTA row */}
           <div className="flex flex-col items-center gap-3 md:items-center">
             {isLoggedIn ? (
-              <>
-                <Link
-                  href="/today"
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--accent-solid)] px-6 py-2.5 text-sm font-medium text-[var(--text-on-accent)] shadow-sm hover:opacity-95"
-                >
-                  <Timer className="h-4 w-4" />
-                  <span>Go to app</span>
-                </Link>
-                <div className="flex flex-wrap justify-center gap-2 text-[0.75rem] text-[var(--text-muted)]">
-                  <Link
-                    href="/week"
-                    className="inline-flex items-center gap-1 hover:text-[var(--text-primary)]"
-                  >
-                    <CalendarRange className="h-3.5 w-3.5" />
-                    <span>Week view</span>
-                  </Link>
-                  <span className="text-[var(--border-subtle)]">·</span>
-                  <Link
-                    href="/summary"
-                    className="inline-flex items-center gap-1 hover:text-[var(--text-primary)]"
-                  >
-                    <FileText className="h-3.5 w-3.5" />
-                    <span>Summary</span>
-                  </Link>
-                </div>
-              </>
+              <Link
+                href="/today"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--accent-solid)] px-6 py-2.5 text-sm font-medium text-[var(--text-on-accent)] shadow-sm hover:opacity-95"
+              >
+                <Timer className="h-4 w-4" />
+                <span>Go to app</span>
+              </Link>
             ) : (
               <>
                 <InlineSignInButton

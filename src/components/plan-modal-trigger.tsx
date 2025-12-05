@@ -16,25 +16,31 @@ type Plan = "free" | "pro";
 
 type PlanModalTriggerProps = {
   currentPlan: Plan;
+  children?: React.ReactNode; // optional custom trigger
 };
 
 export const PlanModalTrigger: React.FC<PlanModalTriggerProps> = ({
   currentPlan,
+  children,
 }) => {
   const [open, setOpen] = React.useState(false);
   const isPro = currentPlan === "pro";
 
+  const trigger = children ? (
+    children
+  ) : (
+    <Button
+      size="sm"
+      variant="outline"
+      className="border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-3 py-1.5 text-[0.75rem] text-[var(--text-primary)] hover:bg-[var(--bg-surface)]"
+    >
+      {isPro ? "Change plan" : "See plans"}
+    </Button>
+  );
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          size="sm"
-          variant="outline"
-          className="border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-3 py-1.5 text-[0.75rem] text-[var(--text-primary)] hover:bg-[var(--bg-surface)]"
-        >
-          {isPro ? "Change plan" : "See plans"}
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
 
       <DialogContent
         className="w-[min(100vw-2rem,960px)] max-w-5xl border-[var(--border-subtle)] 
@@ -92,7 +98,7 @@ export const PlanModalTrigger: React.FC<PlanModalTriggerProps> = ({
                 size="sm"
                 variant="outline"
                 className="mt-2 w-full border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[0.8rem] text-[var(--text-primary)] hover:bg-[var(--bg-surface-soft)]"
-                disabled={!isPro}
+                disabled
               >
                 Current plan
               </Button>

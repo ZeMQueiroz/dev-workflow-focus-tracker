@@ -36,8 +36,8 @@ export const createSession = async (formData: FormData) => {
     where: {
       id: Number(projectId),
       OR: [
-        { ownerEmail },          // owned by this user
-        { ownerEmail: null },    // legacy rows without owner; you can drop this later
+        { ownerEmail }, // owned by this user
+        { ownerEmail: null }, // legacy rows without owner; you can drop this later
       ],
     },
   });
@@ -56,7 +56,7 @@ export const createSession = async (formData: FormData) => {
     },
   });
 
-  revalidatePath("/");
+  revalidatePath("/today");
   revalidatePath("/week");
   revalidatePath("/summary");
 };
@@ -79,7 +79,7 @@ export const deleteSession = async (formData: FormData) => {
     },
   });
 
-  revalidatePath("/");
+  revalidatePath("/today");
   revalidatePath("/week");
   revalidatePath("/summary");
 };
@@ -133,7 +133,7 @@ export const updateSession = async (formData: FormData) => {
     },
   });
 
-  revalidatePath("/");
+  revalidatePath("/today");
   revalidatePath("/week");
   revalidatePath("/summary");
 };
