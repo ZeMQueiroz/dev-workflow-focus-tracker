@@ -20,7 +20,7 @@ export async function getUserProStatus(
   }
 
   try {
-    const settings = await prisma.userSettings.findUnique({
+    const settings = (prisma as any).userSettings.findUnique({
       where: { ownerEmail },
     });
 
