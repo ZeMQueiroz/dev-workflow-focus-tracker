@@ -69,8 +69,13 @@ const SettingsPage = async () => {
     getUserProStatus(ownerEmail),
   ]);
 
-  const totalWeekMs = sessionsThisWeek.reduce(
-    (acc, s) => acc + s.durationMs,
+  type Milliseconds = number;
+  interface SessionThisWeek {
+    durationMs: Milliseconds;
+  }
+
+  const totalWeekMs: Milliseconds = sessionsThisWeek.reduce<Milliseconds>(
+    (acc: Milliseconds, s: SessionThisWeek) => acc + s.durationMs,
     0
   );
   const lifetimeMs = lifetimeStats._sum.durationMs ?? 0;

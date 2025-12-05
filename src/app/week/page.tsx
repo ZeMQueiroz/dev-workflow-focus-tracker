@@ -24,13 +24,36 @@ import {
 
 const FREE_HISTORY_DAYS = 30;
 
+interface Project {
+  name: string;
+  color: string | null;
+}
+
+interface SessionWithProject {
+  id: number;
+  projectId: number;
+  startTime: Date;
+  durationMs: number;
+  intention: string;
+  notes: string | null;
+  project: Project;
+}
+
+interface ProjectTotalsEntry {
+  name: string;
+  color: string | null;
+  totalMs: number;
+  count: number;
+}
+
+type ProjectTotalsRecord = Record<number, ProjectTotalsEntry>;
+
 type WeekPageSearchParams = {
   offset?: string;
   day?: string;
 };
 
 type WeekPageProps = {
-  // Next 16: searchParams is a Promise
   searchParams: Promise<WeekPageSearchParams>;
 };
 
@@ -110,34 +133,37 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
     },
   });
 
-  const totalMs = sessions.reduce((acc, s) => acc + s.durationMs, 0);
+  const totalMs: number = sessions.reduce<number>(
+    (acc: number, s: SessionWithProject) => acc + s.durationMs,
+    0
+  );
   const sessionsCount = sessions.length;
 
-  // Totals per project
-  const projectTotals = sessions.reduce<
-    Record<
-      number,
-      { name: string; color: string | null; totalMs: number; count: number }
-    >
-  >((acc, s) => {
-    if (!acc[s.projectId]) {
-      acc[s.projectId] = {
-        name: s.project.name,
-        color: s.project.color ?? null,
-        totalMs: 0,
-        count: 0,
-      };
-    }
-    acc[s.projectId].totalMs += s.durationMs;
-    acc[s.projectId].count += 1;
-    return acc;
-  }, {});
+  const projectTotals = sessions.reduce<ProjectTotalsRecord>(
+    (acc: ProjectTotalsRecord, s: SessionWithProject) => {
+      if (!acc[s.projectId]) {
+        acc[s.projectId] = {
+          name: s.project.name,
+          color: s.project.color ?? null,
+          totalMs: 0,
+          count: 0,
+        };
+      }
+      acc[s.projectId].totalMs += s.durationMs;
+      acc[s.projectId].count += 1;
+      return acc;
+    },
+    {}
+  );
 
   const projectTotalsArray = Object.entries(projectTotals).map(
-    ([id, value]) => ({
-      id: Number(id),
-      ...value,
-    })
+    ([id, value]) => {
+      const v = value as ProjectTotalsEntry;
+      return {
+        id: Number(id),
+        ...v,
+      };
+    }
   );
 
   // Group by day
@@ -150,18 +176,18 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
 
   const dayMap = new Map<string, DayGroup>();
 
-  sessions.forEach((s) => {
-    const d = s.startTime;
-    const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
+  sessions.forEach((s: SessionWithProject) => {
+    const d: Date = s.startTime;
+    const key: string = d.toISOString().slice(0, 10); // YYYY-MM-DD
     if (!dayMap.has(key)) {
-      const label = d.toLocaleDateString("en-US", {
+      const label: string = d.toLocaleDateString("en-US", {
         weekday: "short",
         month: "short",
         day: "numeric",
       });
-      dayMap.set(key, { key, label, totalMs: 0, sessions: [] });
+      dayMap.set(key, { key, label, totalMs: 0, sessions: [] } as DayGroup);
     }
-    const group = dayMap.get(key)!;
+    const group: DayGroup = dayMap.get(key)!;
     group.sessions.push(s);
     group.totalMs += s.durationMs;
   });

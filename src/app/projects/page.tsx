@@ -20,6 +20,7 @@ import {
   PROJECT_COLOR_LABELS,
   getProjectColorDotClass,
 } from "@/lib/project-colors";
+import type { Project, Session } from "@prisma/client";
 
 const ProjectsPage = async () => {
   const ownerEmail = await getCurrentUserEmail();
@@ -45,21 +46,22 @@ const ProjectsPage = async () => {
 
   const { start, end } = getWeekRange(0);
 
-  const [projects, sessionsThisWeek] = await Promise.all([
-    prisma.project.findMany({
-      where: { ownerEmail },
-      orderBy: { createdAt: "asc" },
-    }),
-    prisma.session.findMany({
-      where: {
-        ownerEmail,
-        startTime: {
-          gte: start,
-          lt: end,
+  const [projects, sessionsThisWeek]: [Project[], Session[]] =
+    await Promise.all([
+      prisma.project.findMany({
+        where: { ownerEmail },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.session.findMany({
+        where: {
+          ownerEmail,
+          startTime: {
+            gte: start,
+            lt: end,
+          },
         },
-      },
-    }),
-  ]);
+      }),
+    ]);
 
   const activeProjects = projects.filter((p) => !p.isArchived);
   const archivedProjects = projects.filter((p) => p.isArchived);
