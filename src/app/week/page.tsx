@@ -95,7 +95,7 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
 
   // --- PLAN / HISTORY LIMIT SETUP (Option A: UserSettings) -----------------
 
-  const userSettings = await prisma.userSettings.upsert({
+  const userSettings = (prisma as any).userSettings.upsert({
     where: { ownerEmail },
     update: {},
     create: { ownerEmail },
