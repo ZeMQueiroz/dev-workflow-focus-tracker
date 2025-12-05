@@ -25,6 +25,8 @@ type SessionWithProject = Prisma.SessionGetPayload<{
   include: { project: true };
 }>;
 
+type Project = Prisma.ProjectGetPayload<{}>;
+
 type TodayPageSearchParams = {
   onboarding?: string;
 };
@@ -283,7 +285,7 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
 
   const { start, end } = getTodayRange();
 
-  let projects: Awaited<ReturnType<typeof prisma.project.findMany>> = [];
+  let projects: Project[] = [];
   let sessions: SessionWithProject[] = [];
 
   try {
@@ -315,7 +317,7 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
   const sessionsCount = sessions.length;
 
   // Lookup by id
-  const projectById = new Map(projects.map((p) => [p.id, p]));
+  const projectById = new Map<number, Project>(projects.map((p) => [p.id, p]));
 
   // Determine primary project
   let primaryProjectName = "—";
