@@ -5,12 +5,10 @@ import type Stripe from "stripe";
 
 export const runtime = "nodejs";
 
-// Helper: convert unix seconds to Date (or null if missing)
 function unixToDate(unix?: number | null) {
   return typeof unix === "number" ? new Date(unix * 1000) : null;
 }
 
-// Helper: robustly read current period end from Stripe object, regardless of casing
 function readCurrentPeriodEnd(obj: unknown): number | undefined {
   const r = obj as Record<string, unknown>;
   const snake = r["current_period_end"];
@@ -48,19 +46,13 @@ export async function POST(req: Request) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
 
-        const ownerEmail =
-          (session.metadata?.ownerEmail as string | undefined) ??
-          session.customer_details?.email ??
-          undefined;
-
+        const userId = (session.metadata?.userId as string | undefined) ?? null;
         const subscriptionId = session.subscription as string | null;
         const customerId = session.customer as string | null;
 
-        if (!ownerEmail || !subscriptionId || !customerId) break;
+        if (!userId || !subscriptionId || !customerId) break;
 
-        // Stripe SDK returns a Response<Subscription>; access fields safely
         const subResp = await stripe.subscriptions.retrieve(subscriptionId);
-
         const status =
           (subResp as Partial<Stripe.Subscription>).status ?? "active";
 
@@ -69,8 +61,8 @@ export async function POST(req: Request) {
 
         const isActive = status === "active" || status === "trialing";
 
-        await (prisma as any).userSettings.upsert({
-          where: { ownerEmail },
+        await prisma.userSettings.upsert({
+          where: { userId },
           update: {
             stripeCustomerId: customerId,
             stripeSubscriptionId: subscriptionId,
@@ -79,7 +71,7 @@ export async function POST(req: Request) {
             plan: isActive ? "PRO" : "FREE",
           },
           create: {
-            ownerEmail,
+            userId,
             stripeCustomerId: customerId,
             stripeSubscriptionId: subscriptionId,
             isPro: isActive,
@@ -95,20 +87,20 @@ export async function POST(req: Request) {
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
 
-        const settings = await (prisma as any).userSettings.findFirst({
+        const settings = await prisma.userSettings.findFirst({
           where: { stripeSubscriptionId: subscription.id },
+          select: { userId: true },
         });
 
         if (!settings) break;
 
         const currentPeriodEnd = unixToDate(readCurrentPeriodEnd(subscription));
-
         const isActive =
           subscription.status === "active" ||
           subscription.status === "trialing";
 
-        await (prisma as any).userSettings.update({
-          where: { ownerEmail: settings.ownerEmail },
+        await prisma.userSettings.update({
+          where: { userId: settings.userId },
           data: {
             isPro: isActive,
             proExpiresAt: isActive ? currentPeriodEnd : null,
@@ -120,7 +112,6 @@ export async function POST(req: Request) {
       }
 
       default:
-        // ignore other events
         break;
     }
   } catch (err) {

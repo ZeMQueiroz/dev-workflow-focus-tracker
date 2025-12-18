@@ -112,7 +112,7 @@ export const PlanModalTrigger: React.FC<PlanModalTriggerProps> = ({
                 <div className="text-sm font-semibold">Pro</div>
                 <div className="mt-1 text-sm text-[var(--text-muted)]">
                   <span className="text-lg font-semibold text-[var(--text-primary)]">
-                    2,99€
+                    3,99€
                   </span>{" "}
                   / month{" "}
                   <span className="text-[0.7rem] text-[var(--text-muted)]">

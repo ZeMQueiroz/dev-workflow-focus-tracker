@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getWeekRange, formatDuration } from "@/lib/time";
 import { CopySummaryButton } from "@/components/copy-summary-button";
-import { getCurrentUserEmail } from "@/lib/server-auth";
+import { getCurrentUserId } from "@/lib/server-auth";
 import { revalidatePath } from "next/cache";
 import { getProjectColorDotClass } from "@/lib/project-colors";
 
@@ -47,8 +47,8 @@ type SummaryPageProps = {
 const saveWeeklyHighlight = async (formData: FormData) => {
   "use server";
 
-  const ownerEmail = await getCurrentUserEmail();
-  if (!ownerEmail) return;
+  const userId = await getCurrentUserId();
+  if (!userId) return;
 
   const highlightRaw = formData.get("highlight");
   const weekStartRaw = formData.get("weekStart");
@@ -66,15 +66,15 @@ const saveWeeklyHighlight = async (formData: FormData) => {
   try {
     if (!trimmedHighlight) {
       await prisma.weeklyHighlight.deleteMany({
-        where: { ownerEmail, weekStart },
+        where: { userId, weekStart },
       });
     } else {
       await prisma.weeklyHighlight.upsert({
         where: {
-          ownerEmail_weekStart: { ownerEmail, weekStart },
+          userId_weekStart: { userId, weekStart },
         },
         update: { highlight: trimmedHighlight },
-        create: { ownerEmail, weekStart, highlight: trimmedHighlight },
+        create: { userId, weekStart, highlight: trimmedHighlight },
       });
     }
 
@@ -122,8 +122,8 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
       ? Number(rawProjectId)
       : null;
 
-  const ownerEmail = await getCurrentUserEmail();
-  if (!ownerEmail) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
     return (
       <Card className="w-full border-[var(--border-subtle)] bg-[var(--bg-surface)]">
         <CardHeader>
@@ -145,7 +145,7 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
   const { start, end } = getWeekRange(weekOffset);
 
   const sessionWhere: Prisma.SessionWhereInput = {
-    ownerEmail,
+    ownerId: userId,
     startTime: { gte: start, lt: end },
   };
 
@@ -153,14 +153,6 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
     sessionWhere.projectId = projectFilterId;
   }
 
-  // -------------------------------------------------------------------
-  // DB LOAD
-  // -------------------------------------------------------------------
-
-  // ❌ OLD (WRONG)
-  // let sessions: Awaited<ReturnType<typeof prisma.session.findMany>> = [];
-
-  // ✅ NEW (FIXED)
   let sessions: SessionWithProject[] = [];
 
   let weeklyHighlightRecord = null;
@@ -185,16 +177,16 @@ const SummaryPage = async ({ searchParams }: SummaryPageProps) => {
 
     weeklyHighlightRecord = await prisma.weeklyHighlight.findUnique({
       where: {
-        ownerEmail_weekStart: { ownerEmail, weekStart: start },
+        userId_weekStart: { userId, weekStart: start },
       },
     });
 
     projects = await prisma.project.findMany({
-      where: { ownerEmail, isArchived: false },
+      where: { ownerId: userId, isArchived: false },
       orderBy: { name: "asc" },
     });
 
-    proStatus = await getUserProStatus(ownerEmail);
+    proStatus = await getUserProStatus(userId);
   } catch (err) {
     console.error("SummaryPage: failed to load summary data.", err);
   }

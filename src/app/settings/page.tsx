@@ -4,7 +4,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getWeekRange, formatDuration } from "@/lib/time";
-import { getCurrentUserEmail } from "@/lib/server-auth";
 import { ThemeSelector } from "@/components/theme-selector";
 import { InlineSignInButton } from "@/components/inline-sign-in-button";
 import { PlanModalTrigger } from "@/components/plan-modal-trigger";
@@ -27,10 +26,10 @@ import {
 
 const SettingsPage = async () => {
   const session = await getServerSession(authOptions);
-  const ownerEmail = await getCurrentUserEmail();
+  const userId = session?.user?.id ?? null;
 
   // Not signed in
-  if (!session?.user || !ownerEmail) {
+  if (!session?.user || !userId) {
     return (
       <div className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6 text-sm text-[var(--text-muted)]">
         <h1 className="text-lg font-semibold text-[var(--text-primary)]">
@@ -51,7 +50,7 @@ const SettingsPage = async () => {
   const [sessionsThisWeek, lifetimeStats, proStatus] = await Promise.all([
     prisma.session.findMany({
       where: {
-        ownerEmail,
+        ownerId: userId,
         startTime: {
           gte: start,
           lt: end,
@@ -62,11 +61,11 @@ const SettingsPage = async () => {
       },
     }),
     prisma.session.aggregate({
-      where: { ownerEmail },
+      where: { ownerId: userId },
       _sum: { durationMs: true },
       _count: { _all: true },
     }),
-    getUserProStatus(ownerEmail),
+    getUserProStatus(userId),
   ]);
 
   type Milliseconds = number;

@@ -2,11 +2,11 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { getCurrentUserEmail } from "@/lib/server-auth";
+import { getCurrentUserId } from "@/lib/server-auth";
 
 export const createProject = async (formData: FormData) => {
-  const ownerEmail = await getCurrentUserEmail();
-  if (!ownerEmail) return;
+  const userId = await getCurrentUserId();
+  if (!userId) return;
 
   const nameRaw = formData.get("name");
   const colorRaw = formData.get("color");
@@ -20,7 +20,7 @@ export const createProject = async (formData: FormData) => {
   await prisma.project.create({
     data: {
       name,
-      ownerEmail,
+      ownerId: userId,
       color,
     },
   });
@@ -32,8 +32,8 @@ export const createProject = async (formData: FormData) => {
 };
 
 export const archiveProject = async (formData: FormData) => {
-  const ownerEmail = await getCurrentUserEmail();
-  if (!ownerEmail) return;
+  const userId = await getCurrentUserId();
+  if (!userId) return;
 
   const idRaw = formData.get("id");
   if (!idRaw || typeof idRaw !== "string") return;
@@ -42,19 +42,18 @@ export const archiveProject = async (formData: FormData) => {
   if (Number.isNaN(id)) return;
 
   await prisma.project.updateMany({
-    where: { id, ownerEmail },
+    where: { id, ownerId: userId },
     data: { isArchived: true },
   });
 
   revalidatePath("/projects");
-
   revalidatePath("/week");
   revalidatePath("/summary");
 };
 
 export const unarchiveProject = async (formData: FormData) => {
-  const ownerEmail = await getCurrentUserEmail();
-  if (!ownerEmail) return;
+  const userId = await getCurrentUserId();
+  if (!userId) return;
 
   const idRaw = formData.get("id");
   if (!idRaw || typeof idRaw !== "string") return;
@@ -63,7 +62,7 @@ export const unarchiveProject = async (formData: FormData) => {
   if (Number.isNaN(id)) return;
 
   await prisma.project.updateMany({
-    where: { id, ownerEmail },
+    where: { id, ownerId: userId },
     data: { isArchived: false },
   });
 
@@ -74,8 +73,8 @@ export const unarchiveProject = async (formData: FormData) => {
 };
 
 export const renameProject = async (formData: FormData) => {
-  const ownerEmail = await getCurrentUserEmail();
-  if (!ownerEmail) return;
+  const userId = await getCurrentUserId();
+  if (!userId) return;
 
   const idRaw = formData.get("id");
   const nameRaw = formData.get("name");
@@ -88,12 +87,11 @@ export const renameProject = async (formData: FormData) => {
   if (!name) return;
 
   await prisma.project.updateMany({
-    where: { id, ownerEmail },
+    where: { id, ownerId: userId },
     data: { name },
   });
 
   revalidatePath("/projects");
-
   revalidatePath("/week");
   revalidatePath("/summary");
 };

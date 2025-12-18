@@ -7,22 +7,21 @@ import { stripe } from "@/lib/stripe";
 export async function POST() {
   try {
     const session = await getServerSession(authOptions);
+    const userId = (session?.user as any)?.id as string | undefined;
+    const email = session?.user?.email ?? null;
 
-    if (!session?.user?.email) {
+    if (!userId || !email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const ownerEmail = session.user.email;
-
-    // Ensure we have a UserSettings row
-    // Access via index to avoid stale Prisma types during generation
-    let userSettings = await (prisma as any).userSettings.findUnique({
-      where: { ownerEmail },
+    // Ensure UserSettings row exists (keyed by userId)
+    let userSettings = await prisma.userSettings.findUnique({
+      where: { userId },
     });
 
     if (!userSettings) {
-      userSettings = await (prisma as any).userSettings.create({
-        data: { ownerEmail },
+      userSettings = await prisma.userSettings.create({
+        data: { userId },
       });
     }
 
@@ -31,14 +30,14 @@ export async function POST() {
     // Ensure Stripe customer exists
     if (!stripeCustomerId) {
       const customer = await stripe.customers.create({
-        email: ownerEmail,
-        metadata: { ownerEmail },
+        email,
+        metadata: { userId },
       });
 
       stripeCustomerId = customer.id;
 
-      await (prisma as any).userSettings.update({
-        where: { ownerEmail },
+      await prisma.userSettings.update({
+        where: { userId },
         data: { stripeCustomerId },
       });
     }
@@ -65,7 +64,7 @@ export async function POST() {
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${appUrl}/settings?billing=success`,
       cancel_url: `${appUrl}/settings?billing=cancel`,
-      metadata: { ownerEmail },
+      metadata: { userId }, // IMPORTANT: webhook will use this
     });
 
     return NextResponse.json({ url: checkoutSession.url });

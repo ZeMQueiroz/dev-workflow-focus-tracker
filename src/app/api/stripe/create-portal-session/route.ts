@@ -6,16 +6,14 @@ import { stripe } from "@/lib/stripe";
 
 export async function POST() {
   const session = await getServerSession(authOptions);
+  const userId = (session?.user as any)?.id as string | undefined;
 
-  if (!session?.user?.email) {
+  if (!userId) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const ownerEmail = session.user.email;
-
-  // Access via index to avoid stale Prisma types during generation
-  const userSettings = await (prisma as any).userSettings.findUnique({
-    where: { ownerEmail },
+  const userSettings = await prisma.userSettings.findUnique({
+    where: { userId },
   });
 
   if (!userSettings?.stripeCustomerId) {

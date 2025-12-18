@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getTodayRange, formatDuration } from "@/lib/time";
 import { NewSessionForm } from "@/components/new-session-form";
-import { getCurrentUserEmail } from "@/lib/server-auth";
+import { getCurrentUserId } from "@/lib/server-auth";
 import { SessionList } from "@/components/session-list";
 import { InlineSignInButton } from "@/components/inline-sign-in-button";
 
@@ -44,13 +44,13 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
     onboardingParam === "true" ||
     onboardingParam === "yes";
 
-  const ownerEmail = await getCurrentUserEmail();
+  const userId = await getCurrentUserId();
 
   /* ------------------------------------------------------------------ */
   /* ONBOARDING (LOGGED OUT, /?onboarding=1)                            */
   /* ------------------------------------------------------------------ */
 
-  if (!ownerEmail && onboardingMode) {
+  if (!userId && onboardingMode) {
     return (
       <Card className="w-full border-[var(--border-subtle)] bg-[var(--bg-surface)]">
         <CardContent className="p-6 md:p-10 lg:p-12">
@@ -265,7 +265,7 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
   /* LOGGED OUT (NO ONBOARDING PARAM) */
   /* ------------------------------------------------------------------ */
 
-  if (!ownerEmail) {
+  if (!userId) {
     return (
       <div className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6 text-sm text-[var(--text-muted)]">
         <h1 className="text-lg font-semibold text-[var(--text-primary)]">
@@ -291,12 +291,12 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
   try {
     const [projectsResult, sessionsResultRaw] = await Promise.all([
       prisma.project.findMany({
-        where: { ownerEmail, isArchived: false },
+        where: { ownerId: userId, isArchived: false },
         orderBy: { createdAt: "asc" },
       }),
       prisma.session.findMany({
         where: {
-          ownerEmail,
+          ownerId: userId,
           startTime: { gte: start, lt: end },
         },
         include: { project: true },
@@ -357,7 +357,7 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
     return {
       id: s.id,
       projectName: proj?.name ?? "—",
-      projectColor: proj?.color ?? "#999999",
+      projectColor: proj?.color ?? "slate",
       intention: s.intention,
       durationMs: s.durationMs,
       startTime: s.startTime.toISOString(),

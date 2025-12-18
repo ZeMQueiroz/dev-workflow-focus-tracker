@@ -1,5 +1,6 @@
-// src/app/api/exports/week/pdf/route.tsx
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import {
   pdf,
   Document,
@@ -11,10 +12,8 @@ import {
 
 import { prisma } from "@/lib/prisma";
 import { getWeekRange, formatDuration } from "@/lib/time";
-import { getCurrentUserEmail } from "@/lib/server-auth";
 import type { Prisma } from "@prisma/client";
 
-// Add a type for the included relation
 type SessionWithProject = Prisma.SessionGetPayload<{
   include: { project: true };
 }>;
@@ -166,18 +165,20 @@ type WeeklySummaryPdfProps = {
   projectTotals: ProjectTotalForPdf[];
 };
 
-const WeeklySummaryPdf = ({
-  mode,
-  ownerEmail,
-  clientName,
-  weekStartLabel,
-  weekEndLabel,
-  totalMs,
-  sessionsCount,
-  activeProjectsCount,
-  highlightText,
-  projectTotals,
-}: WeeklySummaryPdfProps) => {
+const WeeklySummaryPdf = (props: WeeklySummaryPdfProps) => {
+  const {
+    mode,
+    ownerEmail,
+    clientName,
+    weekStartLabel,
+    weekEndLabel,
+    totalMs,
+    sessionsCount,
+    activeProjectsCount,
+    highlightText,
+    projectTotals,
+  } = props;
+
   const title =
     mode === "client"
       ? "Weekly client update"
@@ -286,7 +287,6 @@ const WeeklySummaryPdf = ({
               </View>
 
               {/* Data rows */}
-              {/* Data rows */}
               {projectTotals.map((p, index) => {
                 const isLast = index === projectTotals.length - 1;
 
@@ -323,8 +323,11 @@ const WeeklySummaryPdf = ({
 };
 
 export async function GET(req: NextRequest) {
-  const ownerEmail = await getCurrentUserEmail();
-  if (!ownerEmail) {
+  const session = await getServerSession(authOptions);
+  const userId = (session?.user as any)?.id as string | undefined;
+  const userEmail = session?.user?.email ?? null;
+
+  if (!userId || !userEmail) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
@@ -337,14 +340,12 @@ export async function GET(req: NextRequest) {
 
   const weekOffset = rawOffset ? Number(rawOffset) || 0 : 0;
 
-  let mode: SummaryMode;
-  if (rawMode === "manager") {
-    mode = "manager";
-  } else if (rawMode === "client") {
-    mode = "client";
-  } else {
-    mode = "self";
-  }
+  const mode: SummaryMode =
+    rawMode === "manager"
+      ? "manager"
+      : rawMode === "client"
+      ? "client"
+      : "self";
 
   const projectFilterId =
     rawProjectId && !Number.isNaN(Number(rawProjectId))
@@ -354,12 +355,10 @@ export async function GET(req: NextRequest) {
   const { start, end } = getWeekRange(weekOffset);
 
   const sessionWhere: Prisma.SessionWhereInput = {
-    ownerEmail,
-    startTime: {
-      gte: start,
-      lt: end,
-    },
+    ownerId: userId,
+    startTime: { gte: start, lt: end },
   };
+
   if (projectFilterId !== null) {
     sessionWhere.projectId = projectFilterId;
   }
@@ -375,8 +374,8 @@ export async function GET(req: NextRequest) {
     }),
     prisma.weeklyHighlight.findUnique({
       where: {
-        ownerEmail_weekStart: {
-          ownerEmail,
+        userId_weekStart: {
+          userId,
           weekStart: start,
         },
       },
@@ -390,15 +389,8 @@ export async function GET(req: NextRequest) {
   const projectTotals = sessions.reduce<
     Record<number, { name: string; totalMs: number; count: number }>
   >((acc, s) => {
-    // Guard sessions without a projectId
-    if (s.projectId == null) return acc;
-
     if (!acc[s.projectId]) {
-      acc[s.projectId] = {
-        name: s.project?.name ?? "",
-        totalMs: 0,
-        count: 0,
-      };
+      acc[s.projectId] = { name: s.project?.name ?? "", totalMs: 0, count: 0 };
     }
     acc[s.projectId].totalMs += s.durationMs;
     acc[s.projectId].count += 1;
@@ -406,10 +398,7 @@ export async function GET(req: NextRequest) {
   }, {});
 
   const projectTotalsArray = Object.entries(projectTotals).map(
-    ([id, value]) => ({
-      id: Number(id),
-      ...value,
-    })
+    ([id, value]) => ({ id: Number(id), ...value })
   );
 
   const activeProjectsCount = projectTotalsArray.length;
@@ -441,7 +430,7 @@ export async function GET(req: NextRequest) {
   const pdfInstance = pdf(
     <WeeklySummaryPdf
       mode={mode}
-      ownerEmail={ownerEmail}
+      ownerEmail={userEmail} // display only
       clientName={clientName}
       weekStartLabel={weekStartLabel}
       weekEndLabel={weekEndLabel}
@@ -453,7 +442,6 @@ export async function GET(req: NextRequest) {
     />
   );
 
-  // Use Blob instead of Buffer to satisfy BodyInit
   const pdfBlob = await pdfInstance.toBlob();
 
   const filenameBase =
@@ -465,7 +453,6 @@ export async function GET(req: NextRequest) {
 
   const safeStart = weekStartLabel.replace(/[^a-zA-Z0-9]/g, "-");
   const safeEnd = weekEndLabel.replace(/[^a-zA-Z0-9]/g, "-");
-
   const fileName = `${filenameBase}-${safeStart}-to-${safeEnd}.pdf`;
 
   return new NextResponse(pdfBlob, {

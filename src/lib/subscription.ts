@@ -1,3 +1,4 @@
+// src/lib/subscription.ts
 import { prisma } from "@/lib/prisma";
 
 export type Plan = "FREE" | "PRO";
@@ -9,29 +10,27 @@ type ProStatus = {
 };
 
 export async function getUserProStatus(
-  ownerEmail: string | null | undefined
+  userId: string | null | undefined
 ): Promise<ProStatus> {
-  if (!ownerEmail) {
-    return {
-      isPro: false,
-      plan: "FREE",
-      proExpiresAt: null,
-    };
+  if (!userId) {
+    return { isPro: false, plan: "FREE", proExpiresAt: null };
   }
 
   try {
-    const settings = (prisma as any).userSettings.findUnique({
-      where: { ownerEmail },
+    const settings = await prisma.userSettings.findUnique({
+      where: { userId },
+      select: {
+        isPro: true,
+        plan: true,
+        proExpiresAt: true,
+      },
     });
 
     if (!settings) {
-      return {
-        isPro: false,
-        plan: "FREE",
-        proExpiresAt: null,
-      };
+      return { isPro: false, plan: "FREE", proExpiresAt: null };
     }
 
+    // Trust DB "plan" if present, but keep it consistent with isPro
     const isPro = !!settings.isPro;
     const plan: Plan = isPro ? "PRO" : "FREE";
 
@@ -45,10 +44,6 @@ export async function getUserProStatus(
       "getUserProStatus failed (treating as FREE):",
       err?.code ?? err
     );
-    return {
-      isPro: false,
-      plan: "FREE",
-      proExpiresAt: null,
-    };
+    return { isPro: false, plan: "FREE", proExpiresAt: null };
   }
 }

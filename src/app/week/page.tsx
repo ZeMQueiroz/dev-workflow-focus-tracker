@@ -5,7 +5,6 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { getWeekRange, formatDuration } from "@/lib/time";
-import { getCurrentUserEmail } from "@/lib/server-auth";
 import { getProjectColorDotClass } from "@/lib/project-colors";
 import { InlineSignInButton } from "@/components/inline-sign-in-button";
 
@@ -62,9 +61,9 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
   const weekOffset = rawOffset ? Number(rawOffset) || 0 : 0;
 
   const session = await getServerSession(authOptions);
-  const ownerEmail = await getCurrentUserEmail();
+  const userId = session?.user?.id;
 
-  if (!session || !ownerEmail) {
+  if (!session || !userId) {
     return (
       <Card className="w-full border-[var(--border-subtle)] bg-[var(--bg-surface)]">
         <CardHeader>
@@ -86,12 +85,13 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
   // --- PLAN / HISTORY LIMIT SETUP (Option A: UserSettings) -----------------
 
   const userSettings = (prisma as any).userSettings.upsert({
-    where: { ownerEmail },
+    where: { userId },
     update: {},
-    create: { ownerEmail },
+    create: { userId },
   });
 
-  const isPro = userSettings.plan === "PRO";
+  const isPro = userSettings.isPro || userSettings.plan === "PRO";
+
   const isFreePlanWithLimit = !isPro;
 
   const historyLimitDate = getHistoryLimitDate();
@@ -109,7 +109,7 @@ const WeekPage = async ({ searchParams }: WeekPageProps) => {
 
   const sessions = await prisma.session.findMany({
     where: {
-      ownerEmail,
+      ownerId: userId,
       startTime: {
         gte: effectiveStart,
         lt: end,

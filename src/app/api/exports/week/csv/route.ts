@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getWeekRange } from "@/lib/time";
-import { getCurrentUserEmail } from "@/lib/server-auth";
+import { getCurrentUserId } from "@/lib/server-auth";
 import type { Prisma } from "@prisma/client";
 
 const escapeCsv = (value: string | null | undefined) => {
@@ -12,14 +12,13 @@ const escapeCsv = (value: string | null | undefined) => {
   return str;
 };
 
-// Add a type for the included relation
 type SessionWithProject = Prisma.SessionGetPayload<{
   include: { project: true };
 }>;
 
 export const GET = async (request: Request) => {
-  const ownerEmail = await getCurrentUserEmail();
-  if (!ownerEmail) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
     return new Response("Not authenticated", { status: 401 });
   }
 
@@ -35,9 +34,8 @@ export const GET = async (request: Request) => {
 
   const { start, end } = getWeekRange(weekOffset);
 
-  // Use Prisma's generated type instead of the Parameters<> trick
   const where: Prisma.SessionWhereInput = {
-    ownerEmail,
+    ownerId: userId,
     startTime: {
       gte: start,
       lt: end,
@@ -50,12 +48,8 @@ export const GET = async (request: Request) => {
 
   const sessions: SessionWithProject[] = await prisma.session.findMany({
     where,
-    include: {
-      project: true,
-    },
-    orderBy: {
-      startTime: "asc",
-    },
+    include: { project: true },
+    orderBy: { startTime: "asc" },
   });
 
   const header = [
@@ -78,7 +72,7 @@ export const GET = async (request: Request) => {
       date,
       startTime,
       endTime,
-      s.project?.name ?? "", // safer if project can be null
+      s.project.name,
       s.intention,
       s.notes ?? "",
       durationMinutes.toString(),

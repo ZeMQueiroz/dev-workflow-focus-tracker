@@ -1,7 +1,7 @@
 // app/login/page.tsx
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCurrentUserEmail } from "@/lib/server-auth";
+import { getCurrentUserId } from "@/lib/server-auth";
 import { Card } from "@/components/ui/card";
 import {
   Timer,
@@ -23,7 +23,7 @@ type LoginPageProps = {
 };
 
 const LoginPage = async ({ searchParams }: LoginPageProps) => {
-  const ownerEmail = await getCurrentUserEmail();
+  const userId = await getCurrentUserId();
   const resolved = await searchParams;
 
   // Default first-login destination
@@ -31,7 +31,7 @@ const LoginPage = async ({ searchParams }: LoginPageProps) => {
   const error = resolved.error;
 
   // Already signed in? Just send them on.
-  if (ownerEmail) {
+  if (userId) {
     redirect(callbackUrl);
   }
 
