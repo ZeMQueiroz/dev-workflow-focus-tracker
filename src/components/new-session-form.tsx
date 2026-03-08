@@ -41,13 +41,17 @@ type NewSessionFormProps = {
   totalTodayMs: number;
 };
 
-const formatElapsed = (elapsedMs: number) => {
+const formatElapsed = (elapsedMs: number, hideHours = false) => {
   const totalSeconds = Math.floor(elapsedMs / 1000);
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
 
   const pad = (n: number) => n.toString().padStart(2, "0");
+
+  if (hideHours) {
+    return `${pad(hours * 60 + minutes)}:${pad(seconds)}`;
+  }
 
   return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 };
@@ -176,14 +180,25 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
   const [notes, setNotes] = useState("");
   const [notesOpen, setNotesOpen] = useState(false);
 
+  const [manualDuration, setManualDuration] = useState("25");
+  const [sessionMode, setSessionMode] = useState<SessionMode>("timer");
+
   useEffect(() => {
     if (!intention && active.intention) {
       setIntention(active.intention);
     }
   }, [active.intention, intention]);
 
-  const [manualDuration, setManualDuration] = useState("25");
-  const [sessionMode, setSessionMode] = useState<SessionMode>("timer");
+  // Auto-pause pomodoro when it completes
+  useEffect(() => {
+    if (
+      sessionMode === "pomodoro" &&
+      active.isRunning &&
+      active.elapsedMs >= POMODORO_MINUTES * 60 * 1000
+    ) {
+      pauseSession();
+    }
+  }, [sessionMode, active.isRunning, active.elapsedMs, pauseSession]);
 
   const disableForm = !hasProjects;
   const hasIntention = intention.trim().length > 0;
@@ -202,12 +217,8 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
       ? Math.max(1, Math.round(active.elapsedMs / 60000))
       : 0;
   } else {
-    if (!hasElapsed) {
-      effectiveDurationMinutes = POMODORO_MINUTES;
-    } else {
-      const elapsedMinutes = Math.max(1, Math.round(active.elapsedMs / 60000));
-      effectiveDurationMinutes = Math.min(POMODORO_MINUTES, elapsedMinutes);
-    }
+    // Pomodoro is a fixed block, so it always counts as 25 minutes
+    effectiveDurationMinutes = POMODORO_MINUTES;
   }
 
   const canSubmit =
@@ -441,108 +452,92 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
                       : "",
                   ].join(" ")}
                 >
-                  {formatElapsed(displayMs)}
+                  {formatElapsed(displayMs, isPomodoro)}
                 </div>
 
                 {isPomodoro && (
-                  <span className='text-xs text-[var(--text-muted)]'>
+                  <span className='text-[0.65rem] text-[var(--text-muted)]'>
                     {POMODORO_MINUTES}m focus block
                   </span>
                 )}
               </div>
-            </div>
-          )}
 
-          {/* ─── CONTROLS ─── */}
-          {useTimer && (
-            <div className='flex items-center gap-5 mt-1'>
-              {/* Reset */}
-              <button
-                type='button'
-                className='flex flex-col items-center gap-1 rounded-xl px-3 py-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-surface-soft)] hover:text-[var(--text-primary)] disabled:opacity-30 disabled:pointer-events-none'
-                onClick={handleResetTimer}
-                disabled={disableForm || isIdle}
-                aria-label='Reset timer'
-              >
-                <span className='flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)]'>
-                  <RotateCcw className='h-4.5 w-4.5' />
-                </span>
-                <span className='text-[0.6rem] font-medium uppercase tracking-wider'>
-                  Reset
-                </span>
-              </button>
+              {/* ─── NESTED CONTROLS ─── */}
+              {/* Absolutely positioned in the lower area of the circle so main digits stay perfectly centered */}
+              <div className='absolute bottom-14 z-20 flex w-full items-center justify-center gap-4'>
+                {/* Reset */}
+                <button
+                  type='button'
+                  className='flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-surface-soft)] hover:text-[var(--text-primary)] disabled:pointer-events-none disabled:opacity-30'
+                  onClick={handleResetTimer}
+                  disabled={disableForm || isIdle}
+                  aria-label='Reset timer'
+                  title='Reset timer'
+                >
+                  <RotateCcw className='h-4 w-4' />
+                </button>
 
-              {/* Play / Pause — hero button */}
-              <button
-                type='button'
-                disabled={
-                  disableForm ||
-                  !useTimer ||
-                  (!hasIntention && active.elapsedMs === 0)
-                }
-                className={[
-                  "flex flex-col items-center gap-1.5 transition-all",
-                  "disabled:opacity-40 disabled:pointer-events-none",
-                ].join(" ")}
-                onClick={handlePlayPauseTimer}
-                aria-label={
-                  isRunning
-                    ? "Pause timer"
-                    : isPaused
-                      ? "Resume timer"
-                      : "Start timer"
-                }
-              >
-                <span
+                {/* Play / Pause — primary hero button */}
+                <button
+                  type='button'
+                  disabled={
+                    disableForm || (!hasIntention && active.elapsedMs === 0)
+                  }
                   className={[
-                    "flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full shadow-lg transition-all duration-300",
+                    "flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-all duration-300",
                     isRunning
                       ? "bg-[var(--accent-solid)] text-[var(--text-on-accent)] shadow-[0_0_24px_-4px_var(--accent-soft)] hover:scale-105"
                       : isPaused
                         ? "bg-[var(--accent-solid)] text-[var(--text-on-accent)] hover:scale-105 hover:brightness-110"
                         : "bg-[var(--accent-solid)] text-[var(--text-on-accent)] hover:scale-105 hover:brightness-95",
+                    "disabled:pointer-events-none disabled:opacity-40",
                   ].join(" ")}
+                  onClick={handlePlayPauseTimer}
+                  aria-label={
+                    isRunning
+                      ? "Pause timer"
+                      : isPaused
+                        ? "Resume timer"
+                        : "Start timer"
+                  }
+                  title={primaryActionLabel}
                 >
                   {isRunning ? (
-                    <Pause className='h-7 w-7' />
+                    <Pause className='h-6 w-6' />
                   ) : (
-                    <Play className='h-7 w-7 translate-x-0.5' />
+                    <Play className='h-6 w-6 translate-x-0.5' />
                   )}
-                </span>
-                <span className='text-[0.65rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]'>
-                  {primaryActionLabel}
-                </span>
-              </button>
+                </button>
 
-              {/* Spacer to keep hero centered */}
-              <div className='w-[calc(2.75rem+1.5rem)]' />
+                {/* Spacer for visual balance so reset doesn't shift the play button off-center */}
+                <div className='h-9 w-9' aria-hidden='true' />
+              </div>
             </div>
           )}
 
-          {/* Today summary strip */}
-          <div className='flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-1.5 mt-1'>
-            <span className='text-[0.7rem] text-[var(--text-muted)]'>
-              Today so far
-            </span>
-            <span className='font-mono text-xs font-medium text-[var(--text-primary)]'>
-              {formatDuration(totalTodayMs)}
-            </span>
-            {effectiveDurationMinutes > 0 && (
-              <>
-                <span className='text-[var(--border-strong)]'>·</span>
-                <span className='text-[0.7rem] text-[var(--text-muted)]'>
-                  This session
-                </span>
-                <span className='font-mono text-xs font-medium text-[var(--text-primary)]'>
-                  {effectiveDurationMinutes}m
-                </span>
-              </>
-            )}
+          {/* Modern Missing Task Warning */}
+          <div
+            className={[
+              "overflow-hidden transition-all duration-500 ease-in-out w-full flex justify-center",
+              !hasIntention && active.elapsedMs === 0 && !disableForm
+                ? "max-h-12 opacity-100 mt-2 mb-2"
+                : "max-h-0 opacity-0 mt-0 mb-0",
+            ].join(" ")}
+          >
+            <div className='flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 shadow-sm backdrop-blur-md'>
+              <span className='relative flex h-2 w-2'>
+                <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75'></span>
+                <span className='relative inline-flex h-2 w-2 rounded-full bg-amber-500'></span>
+              </span>
+              <span className='text-[0.65rem] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400'>
+                Add a focus below to start
+              </span>
+            </div>
           </div>
         </div>
 
         {/* ─── DIVIDER ─── */}
-        <div className='my-5 border-t border-[var(--border-subtle)] opacity-50' />
+        <div className='mb-5 border-t border-[var(--border-subtle)] opacity-50' />
 
         {/* ─── SESSION DETAILS (compact, integrated) ─── */}
         <div className='space-y-3'>

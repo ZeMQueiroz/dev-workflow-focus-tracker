@@ -33,7 +33,7 @@ const TodayLogsPanel = ({
   const hasData = sessionsCount > 0;
 
   return (
-    <div className='rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]'>
+    <div className='flex flex-col rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden lg:h-full'>
       {/* Toggle header */}
       <button
         type='button'
@@ -57,7 +57,7 @@ const TodayLogsPanel = ({
       </button>
 
       {open && (
-        <div className='border-t border-[var(--border-subtle)] p-4'>
+        <div className='flex-1 border-t border-[var(--border-subtle)] p-4 overflow-y-auto'>
           {hasData ? (
             <>
               {/* Compact inline stats row */}

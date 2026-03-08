@@ -372,29 +372,41 @@ const TodayPage = async ({ searchParams }: TodayPageProps) => {
   });
 
   return (
-    <PageContainer variant='focused'>
-      <div className='w-full space-y-5'>
+    <PageContainer variant='workspace'>
+      <div className='w-full space-y-6 lg:space-y-8'>
         {/* Compact header */}
-        <header className='flex items-baseline justify-between'>
-          <h1 className='text-lg font-semibold tracking-tight text-[var(--text-primary)]'>
+        {/* <header className='flex items-baseline justify-between'>
+          <h1 className='text-xl font-bold tracking-tight text-[var(--text-primary)]'>
             Today
           </h1>
-          <p className='text-xs text-[var(--text-muted)]'>{todayLabel}</p>
-        </header>
+          <p className='text-sm text-[var(--text-muted)]'>{todayLabel}</p>
+        </header> */}
 
-        {/* HERO: Timer + form (full width, centered) */}
-        <NewSessionForm projects={projectSummaries} totalTodayMs={totalMs} />
+        {/* 2-COLUMN WORKSPACE GRID */}
+        <div className='grid items-start gap-6 lg:grid-cols-[1.4fr_1fr] xl:grid-cols-[1.5fr_1fr] lg:gap-8'>
+          {/* LEFT COLUMN: Active Session Input / Timer */}
+          <div className='flex flex-col gap-6'>
+            <NewSessionForm
+              projects={projectSummaries}
+              totalTodayMs={totalMs}
+            />
+          </div>
 
-        {/* SECONDARY: Today's logs */}
-        <TodayLogsPanel
-          sessions={sessionItems}
-          totalMs={totalMs}
-          sessionsCount={sessionsCount}
-          primaryProjectName={primaryProjectName}
-        />
+          {/* RIGHT COLUMN: Review / Log */}
+          <div className='lg:sticky lg:top-6 lg:flex lg:max-h-[calc(100vh-6rem)] lg:flex-col'>
+            <TodayLogsPanel
+              sessions={sessionItems}
+              totalMs={totalMs}
+              sessionsCount={sessionsCount}
+              primaryProjectName={primaryProjectName}
+            />
+          </div>
+        </div>
 
-        {/* TERTIARY: How it works */}
-        <HowItWorks />
+        {/* BELOW THE FOLD: Helper content */}
+        <div className='mt-12 lg:mt-16'>
+          <HowItWorks />
+        </div>
       </div>
     </PageContainer>
   );
