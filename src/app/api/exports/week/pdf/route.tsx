@@ -12,6 +12,7 @@ import {
 
 import { prisma } from "@/lib/prisma";
 import { getWeekRange, formatDuration } from "@/lib/time";
+import { getUserProStatus } from "@/lib/subscription";
 import type { Prisma } from "@prisma/client";
 
 type SessionWithProject = Prisma.SessionGetPayload<{
@@ -183,8 +184,8 @@ const WeeklySummaryPdf = (props: WeeklySummaryPdfProps) => {
     mode === "client"
       ? "Weekly client update"
       : mode === "manager"
-      ? "Weekly update"
-      : "Weekly dev log";
+        ? "Weekly update"
+        : "Weekly dev log";
 
   const subtitle = `${weekStartLabel} – ${weekEndLabel}`;
 
@@ -196,8 +197,8 @@ const WeeklySummaryPdf = (props: WeeklySummaryPdfProps) => {
     mode === "client"
       ? "Projects & deliverables"
       : mode === "manager"
-      ? "Projects worked on"
-      : "By project";
+        ? "Projects worked on"
+        : "By project";
 
   const generatedOn = new Date().toLocaleDateString("en-US", {
     year: "numeric",
@@ -207,7 +208,7 @@ const WeeklySummaryPdf = (props: WeeklySummaryPdfProps) => {
 
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
+      <Page size='A4' style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -331,6 +332,17 @@ export async function GET(req: NextRequest) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
+  const { isPro } = await getUserProStatus(userId);
+  if (!isPro) {
+    return new NextResponse(
+      JSON.stringify({ error: "Pro plan required for PDF exports" }),
+      {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  }
+
   const { searchParams } = new URL(req.url);
 
   const rawOffset = searchParams.get("offset");
@@ -344,8 +356,8 @@ export async function GET(req: NextRequest) {
     rawMode === "manager"
       ? "manager"
       : rawMode === "client"
-      ? "client"
-      : "self";
+        ? "client"
+        : "self";
 
   const projectFilterId =
     rawProjectId && !Number.isNaN(Number(rawProjectId))
@@ -365,7 +377,7 @@ export async function GET(req: NextRequest) {
 
   const [sessions, weeklyHighlight]: [
     SessionWithProject[],
-    Awaited<ReturnType<typeof prisma.weeklyHighlight.findUnique>>
+    Awaited<ReturnType<typeof prisma.weeklyHighlight.findUnique>>,
   ] = await Promise.all([
     prisma.session.findMany({
       where: sessionWhere,
@@ -398,7 +410,7 @@ export async function GET(req: NextRequest) {
   }, {});
 
   const projectTotalsArray = Object.entries(projectTotals).map(
-    ([id, value]) => ({ id: Number(id), ...value })
+    ([id, value]) => ({ id: Number(id), ...value }),
   );
 
   const activeProjectsCount = projectTotalsArray.length;
@@ -439,7 +451,7 @@ export async function GET(req: NextRequest) {
       activeProjectsCount={activeProjectsCount}
       highlightText={highlightText}
       projectTotals={projectTotalsForPdf}
-    />
+    />,
   );
 
   const pdfBlob = await pdfInstance.toBlob();
@@ -448,8 +460,8 @@ export async function GET(req: NextRequest) {
     mode === "client"
       ? "weekly-client-update"
       : mode === "manager"
-      ? "weekly-update"
-      : "weekly-dev-log";
+        ? "weekly-update"
+        : "weekly-dev-log";
 
   const safeStart = weekStartLabel.replace(/[^a-zA-Z0-9]/g, "-");
   const safeEnd = weekEndLabel.replace(/[^a-zA-Z0-9]/g, "-");

@@ -3,19 +3,49 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getCurrentUserId } from "@/lib/server-auth";
+import { redirect } from "next/navigation";
+
+const normalizeName = (value: unknown) => {
+  const s = typeof value === "string" ? value : "";
+  // trim + collapse internal whitespace
+  return s.trim().replace(/\s+/g, " ");
+};
+
+const normalizeColor = (value: unknown) => {
+  const s = typeof value === "string" ? value.trim() : "";
+  // keep your schema as String? (nullable) — null means "default"
+  return s ? s : null;
+};
+
+// Centralized revalidation so we don't forget routes
+const revalidateAll = () => {
+  revalidatePath("/projects");
+  revalidatePath("/today");
+  revalidatePath("/week");
+  revalidatePath("/summary");
+};
 
 export const createProject = async (formData: FormData) => {
   const userId = await getCurrentUserId();
-  if (!userId) return;
+  if (!userId) redirect("/api/auth/signin");
 
-  const nameRaw = formData.get("name");
-  const colorRaw = formData.get("color");
+  const name = normalizeName(formData.get("name"));
+  const color = normalizeColor(formData.get("color"));
 
-  const name = typeof nameRaw === "string" ? nameRaw.trim() : "";
-  if (!name) return;
+  if (!name) redirect("/projects?error=missing_name");
 
-  const color =
-    typeof colorRaw === "string" && colorRaw.trim() ? colorRaw.trim() : null;
+  // Prevent duplicates per user (case-insensitive)
+  const existing = await prisma.project.findFirst({
+    where: {
+      ownerId: userId,
+      name: { equals: name, mode: "insensitive" },
+    },
+    select: { id: true },
+  });
+
+  if (existing) {
+    redirect(`/projects?error=duplicate&name=${encodeURIComponent(name)}`);
+  }
 
   await prisma.project.create({
     data: {
@@ -25,15 +55,13 @@ export const createProject = async (formData: FormData) => {
     },
   });
 
-  revalidatePath("/projects");
-  revalidatePath("/today");
-  revalidatePath("/week");
-  revalidatePath("/summary");
+  revalidateAll();
+  redirect("/projects");
 };
 
 export const archiveProject = async (formData: FormData) => {
   const userId = await getCurrentUserId();
-  if (!userId) return;
+  if (!userId) redirect("/api/auth/signin");
 
   const idRaw = formData.get("id");
   if (!idRaw || typeof idRaw !== "string") return;
@@ -49,11 +77,14 @@ export const archiveProject = async (formData: FormData) => {
   revalidatePath("/projects");
   revalidatePath("/week");
   revalidatePath("/summary");
+
+  // optional: keep user on projects page
+  redirect("/projects");
 };
 
 export const unarchiveProject = async (formData: FormData) => {
   const userId = await getCurrentUserId();
-  if (!userId) return;
+  if (!userId) redirect("/api/auth/signin");
 
   const idRaw = formData.get("id");
   if (!idRaw || typeof idRaw !== "string") return;
@@ -66,25 +97,35 @@ export const unarchiveProject = async (formData: FormData) => {
     data: { isArchived: false },
   });
 
-  revalidatePath("/projects");
-  revalidatePath("/today");
-  revalidatePath("/week");
-  revalidatePath("/summary");
+  revalidateAll();
+  redirect("/projects");
 };
 
 export const renameProject = async (formData: FormData) => {
   const userId = await getCurrentUserId();
-  if (!userId) return;
+  if (!userId) redirect("/api/auth/signin");
 
   const idRaw = formData.get("id");
-  const nameRaw = formData.get("name");
-
   if (!idRaw || typeof idRaw !== "string") return;
   const id = Number(idRaw);
   if (Number.isNaN(id)) return;
 
-  const name = typeof nameRaw === "string" ? nameRaw.trim() : "";
-  if (!name) return;
+  const name = normalizeName(formData.get("name"));
+  if (!name) redirect("/projects?error=missing_name");
+
+  // Prevent duplicates per user (case-insensitive), excluding the project being renamed
+  const existing = await prisma.project.findFirst({
+    where: {
+      ownerId: userId,
+      id: { not: id },
+      name: { equals: name, mode: "insensitive" },
+    },
+    select: { id: true },
+  });
+
+  if (existing) {
+    redirect(`/projects?error=duplicate&name=${encodeURIComponent(name)}`);
+  }
 
   await prisma.project.updateMany({
     where: { id, ownerId: userId },
@@ -94,4 +135,6 @@ export const renameProject = async (formData: FormData) => {
   revalidatePath("/projects");
   revalidatePath("/week");
   revalidatePath("/summary");
+
+  redirect("/projects");
 };

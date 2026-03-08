@@ -5,6 +5,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -29,8 +30,10 @@ model UserSettings {
   stripeCustomerId     String? @unique
   stripeSubscriptionId String? @unique
 
-  isPro        Boolean   @default(false)
-  proExpiresAt DateTime?
+  isPro                 Boolean   @default(false)
+  proExpiresAt          DateTime?
+  cancelAtPeriodEnd     Boolean   @default(false)
+  stripeSubscriptionStatus String? @default("inactive")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -50,6 +53,7 @@ model Project {
   sessions Session[]
 
   @@index([ownerId])
+  @@unique([ownerId, name])
 }
 
 model Session {

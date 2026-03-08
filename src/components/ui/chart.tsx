@@ -53,7 +53,7 @@ export const ChartContainer = ({
         className={cn(
           "flex flex-col justify-center gap-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] p-3 sm:p-4",
           "min-h-[220px] sm:min-h-[260px] md:aspect-video",
-          className
+          className,
         )}
         style={style}
         {...props}
@@ -81,7 +81,7 @@ export type ChartTooltipContentProps = {
   formatter?: (value: number, name?: string) => React.ReactNode;
   indicator?: "dot" | "line" | "none";
   labelFormatter?: (
-    label: string | number | React.ReactNode
+    label: string | number | React.ReactNode,
   ) => React.ReactNode;
 };
 
@@ -98,14 +98,14 @@ export const ChartTooltipContent = ({
   const header = labelFormatter ? labelFormatter(label ?? "") : label;
 
   return (
-    <div className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-2 text-xs text-[var(--text-primary)] shadow-sm">
+    <div className='rounded-xl border border-[white]/10 bg-[var(--bg-surface)]/80 px-3 py-2.5 text-xs text-[var(--text-primary)] shadow-xl backdrop-blur-md dark:border-[white]/5'>
       {header && (
-        <div className="mb-1 text-[0.7rem] font-medium text-[var(--text-muted)]">
+        <div className='mb-1 text-[0.7rem] font-medium text-[var(--text-muted)]'>
           {header}
         </div>
       )}
 
-      <div className="space-y-1">
+      <div className='space-y-1'>
         {payload.map((item, index) => {
           const color = item.color ?? "var(--accent-solid)";
           const name = String(item.name ?? "");
@@ -115,18 +115,18 @@ export const ChartTooltipContent = ({
           return (
             <div
               key={index}
-              className="flex items-center justify-between gap-2"
+              className='flex items-center justify-between gap-2'
             >
-              <span className="flex items-center gap-1">
+              <span className='flex items-center gap-1'>
                 {indicator !== "none" && (
                   <span
-                    className="h-2 w-2 rounded-full"
+                    className='h-2 w-2 rounded-full'
                     style={{ backgroundColor: color }}
                   />
                 )}
-                <span className="text-[var(--text-muted)]">{name}</span>
+                <span className='text-[var(--text-muted)]'>{name}</span>
               </span>
-              <span className="font-mono">{rendered}</span>
+              <span className='font-mono'>{rendered}</span>
             </div>
           );
         })}

@@ -19,6 +19,13 @@ function readCurrentPeriodEnd(obj: unknown): number | undefined {
   );
 }
 
+function readCancelAtPeriodEnd(obj: unknown): boolean {
+  const r = obj as Record<string, unknown>;
+  const snake = r["cancel_at_period_end"];
+  const camel = r["cancelAtPeriodEnd"];
+  return Boolean(snake ?? camel ?? false);
+}
+
 export async function POST(req: Request) {
   const sig = req.headers.get("stripe-signature");
 
@@ -33,7 +40,7 @@ export async function POST(req: Request) {
     event = stripe.webhooks.constructEvent(
       payload,
       sig,
-      process.env.STRIPE_WEBHOOK_SECRET
+      process.env.STRIPE_WEBHOOK_SECRET,
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -60,6 +67,7 @@ export async function POST(req: Request) {
           unixToDate(readCurrentPeriodEnd(subResp)) ?? new Date();
 
         const isActive = status === "active" || status === "trialing";
+        const cancelAtPeriodEnd = readCancelAtPeriodEnd(subResp);
 
         await prisma.userSettings.upsert({
           where: { userId },
@@ -67,24 +75,27 @@ export async function POST(req: Request) {
             stripeCustomerId: customerId,
             stripeSubscriptionId: subscriptionId,
             isPro: isActive,
-            proExpiresAt: currentPeriodEnd,
+            proExpiresAt: isActive ? currentPeriodEnd : null,
             plan: isActive ? "PRO" : "FREE",
+            cancelAtPeriodEnd,
+            stripeSubscriptionStatus: status,
           },
           create: {
             userId,
             stripeCustomerId: customerId,
             stripeSubscriptionId: subscriptionId,
             isPro: isActive,
-            proExpiresAt: currentPeriodEnd,
+            proExpiresAt: isActive ? currentPeriodEnd : null,
             plan: isActive ? "PRO" : "FREE",
+            cancelAtPeriodEnd,
+            stripeSubscriptionStatus: status,
           },
         });
 
         break;
       }
 
-      case "customer.subscription.updated":
-      case "customer.subscription.deleted": {
+      case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
 
         const settings = await prisma.userSettings.findFirst({
@@ -95,16 +106,91 @@ export async function POST(req: Request) {
         if (!settings) break;
 
         const currentPeriodEnd = unixToDate(readCurrentPeriodEnd(subscription));
+        const cancelAtPeriodEnd = readCancelAtPeriodEnd(subscription);
+
+        // Active states: active or trialing
         const isActive =
           subscription.status === "active" ||
           subscription.status === "trialing";
 
+        // If cancel_at_period_end = true, the subscription is still active
+        // until the period ends — user keeps Pro access during that time.
+        // We keep isPro = true and store cancelAtPeriodEnd so the UI knows.
+        const isPro = isActive; // remains true even when cancel_at_period_end
+
         await prisma.userSettings.update({
           where: { userId: settings.userId },
           data: {
-            isPro: isActive,
+            isPro,
             proExpiresAt: isActive ? currentPeriodEnd : null,
+            plan: isPro ? "PRO" : "FREE",
+            cancelAtPeriodEnd,
+            stripeSubscriptionStatus: subscription.status,
+          },
+        });
+
+        break;
+      }
+
+      case "customer.subscription.deleted": {
+        // Subscription is fully expired/canceled — revoke Pro access
+        const subscription = event.data.object as Stripe.Subscription;
+
+        const settings = await prisma.userSettings.findFirst({
+          where: { stripeSubscriptionId: subscription.id },
+          select: { userId: true },
+        });
+
+        if (!settings) break;
+
+        await prisma.userSettings.update({
+          where: { userId: settings.userId },
+          data: {
+            isPro: false,
+            proExpiresAt: null,
+            plan: "FREE",
+            cancelAtPeriodEnd: false,
+            stripeSubscriptionStatus: "canceled",
+          },
+        });
+
+        break;
+      }
+
+      case "invoice.paid": {
+        // Fired on every successful renewal — keep proExpiresAt fresh
+        // Cast via unknown to bypass SDK type mismatch — .subscription exists at runtime
+        const invoice = event.data.object as unknown as Record<string, unknown>;
+        const rawSub = invoice["subscription"];
+        const subscriptionId =
+          typeof rawSub === "string"
+            ? rawSub
+            : ((rawSub as { id?: string } | null)?.id ?? null);
+
+        if (!subscriptionId) break;
+
+        const subForInvoice =
+          await stripe.subscriptions.retrieve(subscriptionId);
+        const periodEnd = unixToDate(readCurrentPeriodEnd(subForInvoice));
+        const isActive =
+          subForInvoice.status === "active" ||
+          subForInvoice.status === "trialing";
+
+        const invoiceSettings = await prisma.userSettings.findFirst({
+          where: { stripeSubscriptionId: subscriptionId },
+          select: { userId: true },
+        });
+
+        if (!invoiceSettings) break;
+
+        await prisma.userSettings.update({
+          where: { userId: invoiceSettings.userId },
+          data: {
+            isPro: isActive,
+            proExpiresAt: isActive ? periodEnd : null,
             plan: isActive ? "PRO" : "FREE",
+            cancelAtPeriodEnd: readCancelAtPeriodEnd(subForInvoice),
+            stripeSubscriptionStatus: subForInvoice.status,
           },
         });
 

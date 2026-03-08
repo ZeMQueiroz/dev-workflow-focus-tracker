@@ -32,7 +32,7 @@ type RootLayoutProps = {
 
 const RootLayout = ({ children }: RootLayoutProps) => {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang='en' className='dark' suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
@@ -47,11 +47,9 @@ const RootLayout = ({ children }: RootLayoutProps) => {
               {/* main scrollable area */}
               <main
                 data-scroll-root
-                className="min-h-[calc(100vh-3.5rem)] px-4 py-6 md:px-8 lg:py-10"
+                className='min-h-[calc(100vh-3.5rem)] px-4 py-5 md:px-6 lg:px-8 lg:py-8'
               >
-                <div className="mx-auto flex max-w-6xl flex-col gap-8">
-                  {children}
-                </div>
+                {children}
               </main>
 
               <AppFooter />

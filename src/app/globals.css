@@ -343,8 +343,13 @@
 /* ------------------------------------------------------------------ */
 
 body {
-  font-family: var(--font-sans), system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif;
+  font-family:
+    var(--font-sans),
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
 }
 
 /* Dark mode ties shadcn tokens to our theme palette. */
@@ -496,7 +501,9 @@ body::before {
   pointer-events: none;
   opacity: 0;
   background: var(--bg-app);
-  transition: opacity 280ms ease-out, transform 1200ms ease-in-out;
+  transition:
+    opacity 280ms ease-out,
+    transform 1200ms ease-in-out;
   transform: translate3d(0, 0, 0);
 }
 
@@ -522,11 +529,8 @@ body::before {
 
 [data-motion-bg="soft"] body::before {
   opacity: 0.9;
-  background: radial-gradient(
-      circle at 0% 0%,
-      rgba(34, 197, 94, 0.35),
-      transparent 60%
-    ),
+  background:
+    radial-gradient(circle at 0% 0%, rgba(34, 197, 94, 0.35), transparent 60%),
     radial-gradient(
       circle at 100% 100%,
       rgba(14, 165, 233, 0.32),
@@ -557,7 +561,8 @@ body::before {
 
 [data-motion-bg="aurora"] body::before {
   opacity: 0.95;
-  background: radial-gradient(
+  background:
+    radial-gradient(
       circle at 10% 0%,
       rgba(56, 189, 248, 0.38),
       transparent 60%
@@ -567,7 +572,11 @@ body::before {
       rgba(168, 85, 247, 0.34),
       transparent 60%
     ),
-    radial-gradient(circle at 0% 100%, rgba(249, 115, 22, 0.3), transparent 60%),
+    radial-gradient(
+      circle at 0% 100%,
+      rgba(249, 115, 22, 0.3),
+      transparent 60%
+    ),
     var(--bg-app);
   animation: motion-aurora 32s ease-in-out infinite alternate;
 }
@@ -588,7 +597,8 @@ body::before {
 
 [data-motion-bg="dusk"] body::before {
   opacity: 0.95;
-  background: radial-gradient(
+  background:
+    radial-gradient(
       circle at 0% 0%,
       rgba(244, 114, 182, 0.42),
       transparent 60%
@@ -623,11 +633,8 @@ body::before {
 
 [data-motion-bg="ocean"] body::before {
   opacity: 0.9;
-  background: radial-gradient(
-      circle at 0% 0%,
-      rgba(59, 130, 246, 0.4),
-      transparent 60%
-    ),
+  background:
+    radial-gradient(circle at 0% 0%, rgba(59, 130, 246, 0.4), transparent 60%),
     radial-gradient(
       circle at 100% 100%,
       rgba(45, 212, 191, 0.32),
@@ -658,7 +665,8 @@ body::before {
 
 [data-motion-bg="nebula"] body::before {
   opacity: 0.95;
-  background: radial-gradient(
+  background:
+    radial-gradient(
       circle at 10% 0%,
       rgba(192, 132, 252, 0.38),
       transparent 60%
@@ -668,7 +676,125 @@ body::before {
       rgba(248, 113, 113, 0.34),
       transparent 60%
     ),
-    radial-gradient(circle at 0% 100%, rgba(139, 92, 246, 0.3), transparent 60%),
+    radial-gradient(
+      circle at 0% 100%,
+      rgba(139, 92, 246, 0.3),
+      transparent 60%
+    ),
     var(--bg-app);
   animation: motion-nebula fortys ease-in-out infinite alternate;
+}
+
+/* ------------------------------------------------------------------ */
+/* Motion background preview tile animations (Settings page)          */
+/* ------------------------------------------------------------------ */
+
+@keyframes preview-soft {
+  0% {
+    background-position: 0% 0%;
+    transform: scale(1);
+  }
+  50% {
+    background-position: 40% 60%;
+    transform: scale(1.06);
+  }
+  100% {
+    background-position: 0% 0%;
+    transform: scale(1);
+  }
+}
+
+@keyframes preview-aurora {
+  0% {
+    transform: scale(1.02) translate(0, 0);
+  }
+  33% {
+    transform: scale(1.08) translate(-3%, 2%);
+  }
+  66% {
+    transform: scale(1.05) translate(3%, -2%);
+  }
+  100% {
+    transform: scale(1.02) translate(0, 0);
+  }
+}
+
+@keyframes preview-dusk {
+  0% {
+    transform: scale(1) translate(0, 0);
+  }
+  50% {
+    transform: scale(1.07) translate(-2%, 3%);
+  }
+  100% {
+    transform: scale(1) translate(0, 0);
+  }
+}
+
+@keyframes preview-ocean {
+  0% {
+    transform: scale(1.02) translate(0, 0);
+  }
+  50% {
+    transform: scale(1.08) translate(3%, -3%);
+  }
+  100% {
+    transform: scale(1.02) translate(0, 0);
+  }
+}
+
+@keyframes preview-nebula {
+  0% {
+    transform: scale(1.03) translate(0, 0);
+  }
+  50% {
+    transform: scale(1.1) translate(-3%, 2%);
+  }
+  100% {
+    transform: scale(1.03) translate(0, 0);
+  }
+}
+
+[data-motion-preview="soft"] {
+  animation: preview-soft 8s ease-in-out infinite;
+}
+[data-motion-preview="aurora"] {
+  animation: preview-aurora 10s ease-in-out infinite;
+}
+[data-motion-preview="dusk"] {
+  animation: preview-dusk 9s ease-in-out infinite;
+}
+[data-motion-preview="ocean"] {
+  animation: preview-ocean 11s ease-in-out infinite;
+}
+[data-motion-preview="nebula"] {
+  animation: preview-nebula 12s ease-in-out infinite;
+}
+
+/* ------------------------------------------------------------------ */
+/* Timer hero animations                                              */
+/* ------------------------------------------------------------------ */
+
+@keyframes timer-ring-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 6px var(--accent-solid))
+      drop-shadow(0 0 14px var(--accent-soft));
+  }
+  50% {
+    filter: drop-shadow(0 0 10px var(--accent-solid))
+      drop-shadow(0 0 24px var(--accent-soft));
+  }
+}
+
+@keyframes timer-dot-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.6);
+    opacity: 0.7;
+  }
 }

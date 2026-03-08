@@ -20,27 +20,25 @@ const CopySummaryButton = ({ text }: CopySummaryButtonProps) => {
     }
   };
 
-  const label = copied ? "Copied!" : "Copy as Markdown";
-
   return (
     <button
-      type="button"
+      type='button'
       onClick={handleCopy}
-      aria-label={label}
-      aria-live="polite"
+      aria-label={copied ? "Copied!" : "Copy as Markdown"}
+      aria-live='polite'
       className={[
-        "inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium transition",
+        "inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-xs font-medium transition-all",
         copied
           ? "border-transparent bg-[var(--accent-solid)] text-[var(--text-on-accent)] shadow-sm"
           : "border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] text-[var(--text-primary)] hover:bg-[var(--bg-surface)]",
       ].join(" ")}
     >
       {copied ? (
-        <Check className="h-3.5 w-3.5" aria-hidden="true" />
+        <Check className='h-3.5 w-3.5' aria-hidden='true' />
       ) : (
-        <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+        <Copy className='h-3.5 w-3.5' aria-hidden='true' />
       )}
-      <span>{label}</span>
+      <span>{copied ? "Copied!" : "Copy as Markdown"}</span>
     </button>
   );
 };
