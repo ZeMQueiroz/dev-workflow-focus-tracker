@@ -372,19 +372,15 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
         <div className='relative flex flex-col items-center gap-4 py-2 sm:py-4'>
           {sessionMode === "manual" ? (
             /* Manual: ring wrapping a number input */
-            <div
-              className='relative flex items-center justify-center'
-              style={{ width: RING_SIZE, height: RING_SIZE }}
-            >
+            <div className='relative flex items-center justify-center w-full max-w-[320px] sm:max-w-[360px] aspect-square mx-auto'>
               {/* Static ring */}
               <svg
-                width={RING_SIZE}
-                height={RING_SIZE}
-                className='absolute inset-0'
+                viewBox='0 0 360 360'
+                className='absolute inset-0 h-full w-full'
               >
                 <circle
-                  cx={RING_SIZE / 2}
-                  cy={RING_SIZE / 2}
+                  cx={180}
+                  cy={180}
                   r={RING_RADIUS}
                   fill='none'
                   stroke='var(--border-subtle)'
@@ -410,40 +406,35 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
             </div>
           ) : (
             /* Timer / Pomodoro: ring + big digits */
-            <div
-              className='relative flex items-center justify-center'
-              style={{ width: RING_SIZE, height: RING_SIZE }}
-            >
+            <div className='relative flex items-center justify-center w-full max-w-[320px] sm:max-w-[360px] aspect-square mx-auto'>
               <CircularRing
                 progress={ringProgress}
                 isRunning={isRunning}
                 isPaused={isPaused}
               />
 
-              {/* Inner content */}
-              <div className='relative z-10 flex flex-col items-center gap-1.5'>
-                {/* Status label */}
-                <div className='flex items-center gap-2'>
-                  <span
-                    className={[
-                      "h-2 w-2 rounded-full transition-colors",
-                      stateDotColor,
-                    ].join(" ")}
-                    style={
-                      isRunning
-                        ? {
-                            animation:
-                              "timer-dot-pulse 2s ease-in-out infinite",
-                          }
-                        : {}
-                    }
-                  />
-                  <span className='text-[0.7rem] font-semibold uppercase tracking-widest text-[var(--text-muted)]'>
-                    {stateLabel}
-                  </span>
-                </div>
+              {/* Status label at the top */}
+              <div className='absolute top-[18%] sm:top-[20%] z-10 flex w-full items-center justify-center gap-2'>
+                <span
+                  className={[
+                    "h-2 w-2 rounded-full transition-colors",
+                    stateDotColor,
+                  ].join(" ")}
+                  style={
+                    isRunning
+                      ? {
+                          animation: "timer-dot-pulse 2s ease-in-out infinite",
+                        }
+                      : {}
+                  }
+                />
+                <span className='text-[0.7rem] font-semibold uppercase tracking-widest text-[var(--text-muted)]'>
+                  {stateLabel}
+                </span>
+              </div>
 
-                {/* Big digits */}
+              {/* Big digits dead-center */}
+              <div className='absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center whitespace-nowrap'>
                 <div
                   className={[
                     "font-mono text-6xl font-semibold tabular-nums tracking-tight text-[var(--text-primary)] sm:text-7xl transition-all duration-500",
@@ -456,15 +447,15 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
                 </div>
 
                 {isPomodoro && (
-                  <span className='text-[0.65rem] text-[var(--text-muted)]'>
+                  <span className='absolute -bottom-6 text-[0.65rem] text-[var(--text-muted)]'>
                     {POMODORO_MINUTES}m focus block
                   </span>
                 )}
               </div>
 
               {/* ─── NESTED CONTROLS ─── */}
-              {/* Absolutely positioned in the lower area of the circle so main digits stay perfectly centered */}
-              <div className='absolute bottom-14 z-20 flex w-full items-center justify-center gap-4'>
+              {/* Absolutely positioned in the lower area of the circle using percentages */}
+              <div className='absolute bottom-[10%] sm:bottom-[12%] z-20 flex w-full items-center justify-center gap-4'>
                 {/* Reset */}
                 <button
                   type='button'
