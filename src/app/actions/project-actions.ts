@@ -101,7 +101,7 @@ export const unarchiveProject = async (formData: FormData) => {
   redirect("/projects");
 };
 
-export const renameProject = async (formData: FormData) => {
+export const updateProject = async (formData: FormData) => {
   const userId = await getCurrentUserId();
   if (!userId) redirect("/api/auth/signin");
 
@@ -111,6 +111,7 @@ export const renameProject = async (formData: FormData) => {
   if (Number.isNaN(id)) return;
 
   const name = normalizeName(formData.get("name"));
+  const color = normalizeColor(formData.get("color"));
   if (!name) redirect("/projects?error=missing_name");
 
   // Prevent duplicates per user (case-insensitive), excluding the project being renamed
@@ -129,7 +130,7 @@ export const renameProject = async (formData: FormData) => {
 
   await prisma.project.updateMany({
     where: { id, ownerId: userId },
-    data: { name },
+    data: { name, color },
   });
 
   revalidatePath("/projects");

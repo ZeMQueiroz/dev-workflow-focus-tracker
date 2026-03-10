@@ -10,10 +10,13 @@ import { CreateProjectDialog } from "@/components/create-project-dialog";
 import {
   archiveProject,
   unarchiveProject,
-  renameProject,
+  updateProject,
 } from "../actions/project-actions";
 
-import { getProjectColorDotClass } from "@/lib/project-colors";
+import {
+  getProjectColorDotClass,
+  PROJECT_COLOR_KEYS,
+} from "@/lib/project-colors";
 import { PageContainer } from "@/components/page-container";
 
 import {
@@ -280,24 +283,51 @@ const ProjectsPage = async ({ searchParams }: ProjectsPageProps) => {
 
                           {/* Rename form — compact dropdown */}
                           <div className='absolute right-0 top-full z-10 mt-1 w-64 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3 shadow-xl'>
-                            <form action={renameProject} className='flex gap-2'>
+                            <form
+                              action={updateProject}
+                              className='flex flex-col gap-3'
+                            >
                               <input
                                 type='hidden'
                                 name='id'
                                 value={project.id}
                               />
-                              <input
-                                name='name'
-                                defaultValue={project.name}
-                                className='h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-strong)]'
-                              />
-                              <Button
-                                type='submit'
-                                size='sm'
-                                className='h-8 shrink-0 bg-[var(--accent-solid)] px-3 text-xs text-[var(--text-on-accent)] hover:brightness-110'
-                              >
-                                Save
-                              </Button>
+                              <div className='flex gap-2'>
+                                <input
+                                  name='name'
+                                  defaultValue={project.name}
+                                  className='h-8 w-full rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface-soft)] px-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-strong)]'
+                                />
+                                <Button
+                                  type='submit'
+                                  size='sm'
+                                  className='h-8 shrink-0 bg-[var(--accent-solid)] px-3 text-xs text-[var(--text-on-accent)] hover:brightness-110'
+                                >
+                                  Save
+                                </Button>
+                              </div>
+                              <div className='flex items-center gap-2 px-1'>
+                                {PROJECT_COLOR_KEYS.map((c) => (
+                                  <label
+                                    key={c}
+                                    className='relative flex cursor-pointer items-center justify-center'
+                                    title={c}
+                                  >
+                                    <input
+                                      type='radio'
+                                      name='color'
+                                      value={c}
+                                      defaultChecked={
+                                        (project.color || "slate") === c
+                                      }
+                                      className='peer sr-only'
+                                    />
+                                    <span
+                                      className={`${getProjectColorDotClass(c)} ring-offset-[var(--bg-surface)] transition-all peer-checked:ring-2 peer-checked:ring-[var(--text-primary)] peer-checked:ring-offset-2 peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--text-primary)] peer-focus-visible:ring-offset-2`}
+                                    />
+                                  </label>
+                                ))}
+                              </div>
                             </form>
                           </div>
                         </details>

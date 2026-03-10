@@ -10,6 +10,7 @@ import {
 
 type ActiveSessionMeta = {
   projectName?: string;
+  projectId?: string;
   intention?: string;
 };
 
@@ -28,7 +29,7 @@ type ActiveSessionContextValue = {
 };
 
 const ActiveSessionContext = createContext<ActiveSessionContextValue | null>(
-  null
+  null,
 );
 
 export const ActiveSessionProvider = ({
@@ -41,6 +42,7 @@ export const ActiveSessionProvider = ({
     elapsedMs: 0,
     startTimestamp: null,
     projectName: undefined,
+    projectId: undefined,
     intention: undefined,
   });
 
@@ -66,6 +68,7 @@ export const ActiveSessionProvider = ({
       elapsedMs: 0,
       startTimestamp: now,
       projectName: meta.projectName,
+      projectId: meta.projectId,
       intention: meta.intention,
     });
   };
@@ -101,6 +104,7 @@ export const ActiveSessionProvider = ({
       elapsedMs: 0,
       startTimestamp: null,
       projectName: undefined,
+      projectId: undefined,
       intention: undefined,
     });
   };
@@ -118,7 +122,7 @@ export const useActiveSession = () => {
   const ctx = useContext(ActiveSessionContext);
   if (!ctx) {
     throw new Error(
-      "useActiveSession must be used within ActiveSessionProvider"
+      "useActiveSession must be used within ActiveSessionProvider",
     );
   }
   return ctx;

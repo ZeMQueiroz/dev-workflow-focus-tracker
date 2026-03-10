@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-
-import { useFormStatus } from "react-dom";
 import { createSession } from "@/app/actions/session-actions";
 import { formatDuration } from "@/lib/time";
 import { getProjectColorDotClass } from "@/lib/project-colors";
@@ -130,9 +128,13 @@ const CircularRing = ({
   );
 };
 
-const SubmitButton = ({ disabled }: { disabled: boolean }) => {
-  const { pending } = useFormStatus();
-
+const SubmitButton = ({
+  disabled,
+  pending,
+}: {
+  disabled: boolean;
+  pending: boolean;
+}) => {
   return (
     <Button
       type='submit'
@@ -228,6 +230,8 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
   const isIdle = !isRunning && active.elapsedMs === 0;
   const isPaused = !isRunning && active.elapsedMs > 0;
 
+  const [isPending, startTransition] = useTransition();
+
   const handleModeChange = (nextMode: SessionMode) => {
     setSessionMode(nextMode);
     if (nextMode === "manual") {
@@ -249,6 +253,7 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
 
       startSession({
         projectName,
+        projectId,
         intention: intention.trim() || "Focused work",
       });
       return;
@@ -265,6 +270,25 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
     if (!useTimer) return;
     resetSession();
   };
+
+  const handleFormAction = (formData: FormData) => {
+    startTransition(async () => {
+      await createSession(formData);
+      // Post-save cleanup
+      resetSession();
+      setIntention("");
+      setNotes("");
+      setNotesOpen(false);
+      // Note: we purposely do NOT reset the projectId or sessionMode
+    });
+  };
+
+  // Determine locked states
+  const isSessionLocked = active.elapsedMs > 0 || active.isRunning;
+  const effectiveProjectId =
+    isSessionLocked && active.projectId ? active.projectId : projectId;
+  const effectiveIntention =
+    isSessionLocked && active.intention ? active.intention : intention;
 
   // ---- Timer display ----
   const rawElapsedMs = useTimer ? active.elapsedMs : 0;
@@ -308,9 +332,10 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
       : "Start";
 
   return (
-    <form action={createSession}>
+    <form action={handleFormAction}>
       {/* Hidden fields */}
-      <input type='hidden' name='projectId' value={projectId} />
+      <input type='hidden' name='projectId' value={effectiveProjectId} />
+      <input type='hidden' name='intention' value={effectiveIntention} />
       <input
         type='hidden'
         name='durationMinutes'
@@ -541,9 +566,9 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
               {hasProjects ? (
                 <div suppressHydrationWarning>
                   <Select
-                    value={projectId}
+                    value={effectiveProjectId}
                     onValueChange={setProjectId}
-                    disabled={disableForm}
+                    disabled={disableForm || isSessionLocked}
                   >
                     <SelectTrigger className='w-full border-[var(--border-subtle)] bg-[var(--bg-surface)] text-sm text-[var(--text-primary)]'>
                       <SelectValue placeholder='Select a project' />
@@ -585,9 +610,8 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
                 What are you focusing on?
               </Label>
               <Input
-                name='intention'
-                disabled={disableForm}
-                value={intention}
+                disabled={disableForm || isSessionLocked}
+                value={effectiveIntention}
                 onChange={(e) => setIntention(e.target.value)}
                 className='w-full border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-strong)]'
                 placeholder='e.g. Draft billing API tests'
@@ -623,7 +647,7 @@ const NewSessionForm = ({ projects, totalTodayMs }: NewSessionFormProps) => {
           </div>
 
           {/* Save */}
-          <SubmitButton disabled={!canSubmit} />
+          <SubmitButton disabled={!canSubmit} pending={isPending} />
         </div>
       </div>
     </form>
